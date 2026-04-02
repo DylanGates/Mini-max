@@ -25,15 +25,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Setup
 
     private func setupWindows() {
-        guard let screen = NSScreen.builtIn,
-              let notchRect = screen.notchRect else {
-            // No notch — menu bar icon is the only trigger
+        let screen = NSScreen.builtIn
+        print("[MiniMax] builtIn screen: \(screen?.localizedName ?? "nil")")
+        print("[MiniMax] screen.frame: \(screen?.frame as Any)")
+        print("[MiniMax] auxiliaryTopLeft: \(screen?.auxiliaryTopLeftArea as Any)")
+        print("[MiniMax] auxiliaryTopRight: \(screen?.auxiliaryTopRightArea as Any)")
+        print("[MiniMax] safeAreaInsets.top: \(screen?.safeAreaInsets.top as Any)")
+
+        guard let screen = screen, let notchRect = screen.notchRect else {
+            print("[MiniMax] ⚠️ No notch detected — overlay window skipped")
             return
         }
+
+        print("[MiniMax] ✅ Notch rect: \(notchRect)")
 
         notchWindow = NotchWindow()
         overlayWindow = NotchOverlayWindow()
         overlayWindow?.positionOver(notchRect: notchRect)
+        print("[MiniMax] Overlay window frame: \(overlayWindow?.frame as Any)")
 
         overlayWindow?.onMouseEntered = { [weak self] in
             self?.cancelHideTimer()
