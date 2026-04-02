@@ -1,6 +1,16 @@
 import AppKit
 
 extension NSScreen {
+    /// The built-in MacBook display — the one that has the notch.
+    /// Falls back to main screen (e.g. when used with an external monitor only).
+    static var builtIn: NSScreen? {
+        screens.first {
+            let id = $0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID ?? 0
+            return CGDisplayIsBuiltin(id) != 0
+        } ?? main
+    }
+
+
     /// The rect occupied by the notch, in screen coordinates.
     /// Returns nil on Macs without a notch.
     var notchRect: CGRect? {

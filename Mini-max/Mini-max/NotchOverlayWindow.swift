@@ -12,9 +12,8 @@ final class NotchOverlayWindow: NSPanel {
             backing: .buffered,
             defer: false
         )
-        // Must be above everything — including full-screen apps.
-        level = .screenSaver
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        level = .statusBar
+        collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         isMovableByWindowBackground = false
         backgroundColor = .clear
         isOpaque = false

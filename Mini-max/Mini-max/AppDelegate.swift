@@ -25,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Setup
 
     private func setupWindows() {
-        guard let screen = NSScreen.main,
+        guard let screen = NSScreen.builtIn,
               let notchRect = screen.notchRect else {
             // No notch — menu bar icon is the only trigger
             return
@@ -78,7 +78,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Show / Hide
 
     private func showPanel() {
-        guard let screen = NSScreen.main,
+        guard let screen = NSScreen.builtIn,
               let notchRect = screen.notchRect else { return }
         if notchWindow == nil { notchWindow = NotchWindow() }
         notchWindow?.show(relativeTo: notchRect, on: screen)
@@ -87,7 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showPanelFromMenuBar() {
-        guard let screen = NSScreen.main else { return }
+        guard let screen = NSScreen.builtIn else { return }
         if notchWindow == nil { notchWindow = NotchWindow() }
         let panelWidth: CGFloat = 400
         let panelHeight: CGFloat = 500
