@@ -23,12 +23,24 @@ final class NotchOverlayWindow: NSPanel {
         ignoresMouseEvents = false
 
         let hostingView = NSHostingView(rootView: NotchPillView())
+        hostingView.layer?.backgroundColor = .clear
         contentView = hostingView
     }
 
-    /// Position the overlay exactly over the notch and make it visible.
+    /// How many points the pill extends below the real hardware notch.
+    static let bottomExtension: CGFloat = 12
+
+    /// Position the overlay to cover the real notch + extend below it.
+    /// The window top is flush with the screen top so the black fill merges with the bezel.
     func positionOver(notchRect: CGRect) {
-        setFrame(notchRect, display: true)
+        // Extend downward so the rounded bottom corners are visible
+        let extendedRect = CGRect(
+            x: notchRect.minX,
+            y: notchRect.minY - NotchOverlayWindow.bottomExtension,
+            width: notchRect.width,
+            height: notchRect.height + NotchOverlayWindow.bottomExtension
+        )
+        setFrame(extendedRect, display: true)
         orderFrontRegardless()
         addTrackingToContentView()
     }
