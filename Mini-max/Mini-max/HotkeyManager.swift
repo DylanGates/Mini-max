@@ -16,12 +16,12 @@ final class HotkeyManager {
         let observer = Unmanaged.passRetained(self)
         let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
 
-        eventTap = CGEventTapCreate(
-            .cgSessionEventTap,
-            .headInsertEventTap,
-            .defaultTap,
-            mask,
-            { (_, _, event, userInfo) -> Unmanaged<CGEvent>? in
+        eventTap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: mask,
+            callback: { (_, _, event, userInfo) -> Unmanaged<CGEvent>? in
                 guard let userInfo else { return Unmanaged.passRetained(event) }
                 let manager = Unmanaged<HotkeyManager>.fromOpaque(userInfo).takeUnretainedValue()
                 let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
@@ -31,7 +31,7 @@ final class HotkeyManager {
                 }
                 return Unmanaged.passRetained(event)
             },
-            observer.toOpaque()
+            userInfo: observer.toOpaque()
         )
 
         guard let tap = eventTap else {
@@ -41,13 +41,13 @@ final class HotkeyManager {
 
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        CGEventTapEnable(tap, true)
+        CGEvent.tapEnable(tap: tap, enable: true)
         isActive = true
     }
 
     func stop() {
         guard let tap = eventTap else { return }
-        CGEventTapEnable(tap, false)
+        CGEvent.tapEnable(tap: tap, enable: false)
         eventTap = nil
         isActive = false
     }
