@@ -25,24 +25,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Setup
 
     private func setupWindows() {
-        let screen = NSScreen.builtIn
-        print("[MiniMax] builtIn screen: \(screen?.localizedName ?? "nil")")
-        print("[MiniMax] screen.frame: \(screen?.frame as Any)")
-        print("[MiniMax] auxiliaryTopLeft: \(screen?.auxiliaryTopLeftArea as Any)")
-        print("[MiniMax] auxiliaryTopRight: \(screen?.auxiliaryTopRightArea as Any)")
-        print("[MiniMax] safeAreaInsets.top: \(screen?.safeAreaInsets.top as Any)")
-
-        guard let screen = screen, let notchRect = screen.notchRect else {
-            print("[MiniMax] ⚠️ No notch detected — overlay window skipped")
-            return
-        }
-
-        print("[MiniMax] ✅ Notch rect: \(notchRect)")
+        guard let screen = NSScreen.builtIn else { return }
+        let pillRect = screen.pillRect
+        print("[MiniMax] screen: \(screen.localizedName), hasNotch: \(screen.hasNotch), pillRect: \(pillRect)")
 
         notchWindow = NotchWindow()
         overlayWindow = NotchOverlayWindow()
-        overlayWindow?.positionOver(notchRect: notchRect)
-        print("[MiniMax] Overlay window frame: \(overlayWindow?.frame as Any)")
+        overlayWindow?.positionOver(notchRect: pillRect)
 
         overlayWindow?.onMouseEntered = { [weak self] in
             self?.cancelHideTimer()
@@ -87,10 +76,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Show / Hide
 
     private func showPanel() {
-        guard let screen = NSScreen.builtIn,
-              let notchRect = screen.notchRect else { return }
+        guard let screen = NSScreen.builtIn else { return }
         if notchWindow == nil { notchWindow = NotchWindow() }
-        notchWindow?.show(relativeTo: notchRect, on: screen)
+        notchWindow?.show(relativeTo: screen.pillRect, on: screen)
         notchWindow?.setupMouseTracking()
         viewModel.showPanel()
     }

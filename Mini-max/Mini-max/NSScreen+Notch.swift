@@ -27,8 +27,20 @@ extension NSScreen {
         )
     }
 
-    /// True if this screen has a notch.
+    /// True if this screen has a hardware notch.
     var hasNotch: Bool { notchRect != nil }
+
+    /// The rect to use for the pill — either the real notch or a simulated one
+    /// centered at the top of the screen using the menu bar height.
+    var pillRect: CGRect {
+        if let real = notchRect { return real }
+        // Simulated: fixed width pill, menu bar height tall, top-center of screen
+        let pillWidth: CGFloat = 180
+        let pillHeight = frame.maxY - visibleFrame.maxY  // menu bar height
+        let pillX = frame.minX + (frame.width - pillWidth) / 2
+        let pillY = frame.maxY - pillHeight
+        return CGRect(x: pillX, y: pillY, width: pillWidth, height: max(pillHeight, 24))
+    }
 
     /// Pure geometry helper — internal so tests can call it directly.
     /// `max` of the two side heights used as notch height (symmetric on all current hardware).
