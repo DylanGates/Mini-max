@@ -6,14 +6,36 @@ extension NSScreen {
     var notchRect: CGRect? {
         guard let topLeft = auxiliaryTopLeftArea,
               let topRight = auxiliaryTopRightArea else { return nil }
-        let notchWidth = frame.width - topLeft.width - topRight.width
-        guard notchWidth > 0 else { return nil }
-        let notchHeight = max(topLeft.height, topRight.height)
-        let notchX = frame.minX + topLeft.width
-        let notchY = frame.maxY - notchHeight
-        return CGRect(x: notchX, y: notchY, width: notchWidth, height: notchHeight)
+        return NSScreen.notchRect(
+            frameWidth: frame.width,
+            frameMinX: frame.minX,
+            frameMaxY: frame.maxY,
+            topLeftWidth: topLeft.width,
+            topLeftHeight: topLeft.height,
+            topRightWidth: topRight.width,
+            topRightHeight: topRight.height
+        )
     }
 
     /// True if this screen has a notch.
     var hasNotch: Bool { notchRect != nil }
+
+    /// Pure geometry helper — internal so tests can call it directly.
+    /// `max` of the two side heights used as notch height (symmetric on all current hardware).
+    static func notchRect(
+        frameWidth: CGFloat,
+        frameMinX: CGFloat,
+        frameMaxY: CGFloat,
+        topLeftWidth: CGFloat,
+        topLeftHeight: CGFloat,
+        topRightWidth: CGFloat,
+        topRightHeight: CGFloat
+    ) -> CGRect? {
+        let notchWidth = frameWidth - topLeftWidth - topRightWidth
+        guard notchWidth > 0 else { return nil }
+        let notchHeight = max(topLeftHeight, topRightHeight)
+        let notchX = frameMinX + topLeftWidth
+        let notchY = frameMaxY - notchHeight
+        return CGRect(x: notchX, y: notchY, width: notchWidth, height: notchHeight)
+    }
 }
