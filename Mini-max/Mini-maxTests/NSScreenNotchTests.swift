@@ -47,4 +47,14 @@ struct NSScreenNotchTests {
         ))
         #expect(rect.minX == 2560 + 1410)  // frameMinX + topLeftWidth
     }
+
+    @Test func notchHeightUsesMaxOfTwoSides() throws {
+        // Asymmetric heights: right side is taller — max should win
+        let rect = try #require(NSScreen.notchRect(
+            frameWidth: 3456, frameMinX: 0, frameMaxY: 900,
+            topLeftWidth: 1410, topLeftHeight: 32,
+            topRightWidth: 1410, topRightHeight: 36
+        ))
+        #expect(rect.height == 36)
+    }
 }
