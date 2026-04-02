@@ -8,7 +8,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let viewModel = MiniMaxViewModel()
 
     private var hideWorkItem: DispatchWorkItem?
-    private var panelTracker: PanelMouseTracker?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory) // no Dock icon
@@ -45,17 +44,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.scheduleHide(after: 0.4)
         }
 
-        addPanelMouseTracking()
-    }
-
-    private func addPanelMouseTracking() {
-        guard let contentView = notchWindow?.contentView else { return }
-        let tracker = PanelMouseTracker(frame: contentView.bounds)
-        tracker.autoresizingMask = [.width, .height]
-        tracker.onMouseEntered = { [weak self] in self?.cancelHideTimer() }
-        tracker.onMouseExited = { [weak self] in self?.hidePanel() }
-        contentView.addSubview(tracker)
-        panelTracker = tracker
+        notchWindow?.onMouseEntered = { [weak self] in self?.cancelHideTimer() }
+        notchWindow?.onMouseExited = { [weak self] in self?.hidePanel() }
     }
 
     private func setupHotkey() {
@@ -92,6 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
               let notchRect = screen.notchRect else { return }
         if notchWindow == nil { notchWindow = NotchWindow() }
         notchWindow?.show(relativeTo: notchRect, on: screen)
+        notchWindow?.setupMouseTracking()
         viewModel.showPanel()
     }
 
@@ -107,6 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             height: panelHeight
         )
         notchWindow?.show(relativeTo: fallbackRect, on: screen)
+        notchWindow?.setupMouseTracking()
         viewModel.showPanel()
     }
 
@@ -141,25 +133,3 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-// MARK: - Panel mouse tracking helper
-
-/// Transparent NSView subclass placed over the panel content.
-/// NSResponder subclass — can override mouseEntered/mouseExited.
-private final class PanelMouseTracker: NSView {
-    var onMouseEntered: (() -> Void)?
-    var onMouseExited: (() -> Void)?
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        trackingAreas.forEach { removeTrackingArea($0) }
-        addTrackingArea(NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-            owner: self,
-            userInfo: nil
-        ))
-    }
-
-    override func mouseEntered(with event: NSEvent) { onMouseEntered?() }
-    override func mouseExited(with event: NSEvent) { onMouseExited?() }
-}

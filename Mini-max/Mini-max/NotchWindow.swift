@@ -5,6 +5,9 @@ final class NotchWindow: NSPanel {
     private let panelWidth: CGFloat = 400
     private let panelHeight: CGFloat = 500
 
+    var onMouseEntered: (() -> Void)?
+    var onMouseExited: (() -> Void)?
+
     init() {
         super.init(
             contentRect: CGRect(x: 0, y: 0, width: 400, height: 500),
@@ -26,6 +29,21 @@ final class NotchWindow: NSPanel {
         content.layer?.masksToBounds = true
         contentView = content
     }
+
+    /// Call after the window is shown so bounds are valid.
+    func setupMouseTracking() {
+        guard let view = contentView else { return }
+        view.trackingAreas.forEach { view.removeTrackingArea($0) }
+        view.addTrackingArea(NSTrackingArea(
+            rect: view.bounds,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        ))
+    }
+
+    override func mouseEntered(with event: NSEvent) { onMouseEntered?() }
+    override func mouseExited(with event: NSEvent) { onMouseExited?() }
 
     /// Position the panel just below the notch and show it with a fade+slide animation.
     func show(relativeTo notchRect: CGRect, on screen: NSScreen) {
