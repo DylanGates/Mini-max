@@ -44,21 +44,22 @@ struct FocusPanel: View {
             if showSettings {
                 SettingsPanel(pomodoro: pomodoro)
                     .transition(.move(edge: .top).combined(with: .opacity))
-                    .padding(.bottom, 8)
+                    .padding(.bottom, 10)
             }
 
-            HStack(alignment: .top, spacing: 0) {
+            HStack(alignment: .center, spacing: 0) {
                 timerColumn
-                    .frame(width: 110)
+                    .frame(width: 120)
 
                 Rectangle()
-                    .fill(Color(white: 0.1))
+                    .fill(Color(white: 0.09))
                     .frame(width: 1)
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 16)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 18)
 
                 controlsColumn
             }
+            .frame(maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .animation(.easeInOut(duration: 0.2), value: showSettings)
