@@ -15,8 +15,8 @@ final class NotchOverlayWindow: NSPanel {
             backing: .buffered,
             defer: false
         )
-        level = .statusBar
-        collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+        level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 3)
+        collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
         isMovableByWindowBackground = false
         backgroundColor = .clear
         isOpaque = false
