@@ -1,20 +1,23 @@
 import SwiftUI
 
-/// Black notch pill shape.
+/// Notch shape with optional outer blend curves.
 ///
-/// Coordinate system (SwiftUI): y=0 at top, y=maxY at bottom.
-/// - Top edge is flat — flush with the hardware bezel above.
-/// - Bottom corners are rounded with `bottomCornerRadius`.
-/// - When `outerGutterRadius > 0`, concave outer-blend curves are drawn
-///   on each side of the bottom corners, seamlessly connecting the pill
-///   wall to the flat display surface below the notch.
-///   The view rect is expected to be wider than the notch by `outerGutterRadius`
-///   on each side so the gutter curves have room to render.
+/// Coordinate system: y=0 at top (screen bezel), y=maxY at bottom.
+///
+/// When `outerGutterRadius > 0`, the window rect must be wider than the pill
+/// by `outerGutterRadius` on each side. The extra space is filled with concave
+/// anti-corner fillets — matching the chamfer Apple uses on real notch hardware.
+///
+/// Anti-corner geometry (right side):
+///   wall arrives at  (maxX, maxY − g)   ← downward tangent
+///   quad control:    (maxX, maxY)        ← outer corner
+///   lands at         (pMaxX, maxY)       ← leftward tangent
+///
+/// That single quad control point ensures C1 continuity at both endpoints.
 struct NotchShape: Shape {
     var bottomCornerRadius: CGFloat = 10
     var outerGutterRadius:  CGFloat = 0
 
-    // Animate both radii so collapsed ↔ expanded transitions are smooth.
     var animatableData: AnimatablePair<CGFloat, CGFloat> {
         get { AnimatablePair(bottomCornerRadius, outerGutterRadius) }
         set { bottomCornerRadius = newValue.first; outerGutterRadius = newValue.second }
@@ -24,56 +27,64 @@ struct NotchShape: Shape {
         let r = bottomCornerRadius
         let g = outerGutterRadius
 
+        let pMinX = rect.minX + g  // pill left wall
+        let pMaxX = rect.maxX - g  // pill right wall
+
         var p = Path()
 
-        // ── Top edge (full window width) ──────────────────────────────────
-        p.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        // ─── Top edge (full window width, flush with screen bezel) ────────
+        p.move(to:    CGPoint(x: rect.minX, y: rect.minY))
         p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
 
-        // ── Right outer wall ─────────────────────────────────────────────
-        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        // ─── Right: wall → anti-corner → pill inner corner → up ──────────
 
-        if g > 0 {
-            // RIGHT OUTER GUTTER — concave blend from display surface into pill
-            // Cubic bezier derived from the design reference (normalized):
-            //   CP1 ≈ (1 - 0.024, 0.794)  → pulling near outer edge, slightly inward
-            //   CP2 ≈ (1 - 0.256, 1.004)  → pulling near pill corner, at display level
-            //   End:  pill right wall, r above display surface
-            let pillMaxX = rect.maxX - g
-            let cp1 = CGPoint(x: rect.maxX - g * 0.024, y: rect.maxY - g * 0.794)
-            let cp2 = CGPoint(x: rect.maxX - g * 0.256, y: rect.maxY)
-            p.addCurve(to: CGPoint(x: pillMaxX, y: rect.maxY - r),
-                       control1: cp1, control2: cp2)
-        } else {
-            // No gutter — straight down to inner corner start
-            p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
-        }
+        // Right outer wall down to anti-corner zone
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - g))
 
-        // BOTTOM-RIGHT inner rounded corner of pill
+        // Right outer anti-corner (concave fillet, g radius)
         p.addQuadCurve(
-            to: CGPoint(x: rect.maxX - g - r, y: rect.maxY),
-            control: CGPoint(x: rect.maxX - g, y: rect.maxY)
+            to:      CGPoint(x: pMaxX,     y: rect.maxY),
+            control: CGPoint(x: rect.maxX, y: rect.maxY)
         )
 
-        // ── Pill bottom edge ──────────────────────────────────────────────
-        p.addLine(to: CGPoint(x: rect.minX + g + r, y: rect.maxY))
+        // Pill bottom — right segment before inner corner
+        p.addLine(to: CGPoint(x: pMaxX - r, y: rect.maxY))
 
-        // BOTTOM-LEFT inner rounded corner of pill
+        // Pill bottom-right inner corner (convex, r radius)
         p.addQuadCurve(
-            to: CGPoint(x: rect.minX + g, y: rect.maxY - r),
-            control: CGPoint(x: rect.minX + g, y: rect.maxY)
+            to:      CGPoint(x: pMaxX, y: rect.maxY - r),
+            control: CGPoint(x: pMaxX, y: rect.maxY)
         )
 
-        if g > 0 {
-            // LEFT OUTER GUTTER — mirror of right gutter
-            let cp1 = CGPoint(x: rect.minX + g * 0.256, y: rect.maxY)
-            let cp2 = CGPoint(x: rect.minX + g * 0.024, y: rect.maxY - g * 0.794)
-            p.addCurve(to: CGPoint(x: rect.minX, y: rect.maxY),
-                       control1: cp1, control2: cp2)
-        }
+        // Pill right wall up to top
+        p.addLine(to: CGPoint(x: pMaxX, y: rect.minY))
 
-        // ── Left outer wall back to top ───────────────────────────────────
+        // ─── Inner top bridge (inside the notch, hidden by bezel above) ──
+        p.addLine(to: CGPoint(x: pMinX, y: rect.minY))
+
+        // ─── Left: down → pill inner corner → anti-corner → wall ─────────
+
+        // Pill left wall down to inner corner zone
+        p.addLine(to: CGPoint(x: pMinX, y: rect.maxY - r))
+
+        // Pill bottom-left inner corner (convex, r radius)
+        p.addQuadCurve(
+            to:      CGPoint(x: pMinX + r, y: rect.maxY),
+            control: CGPoint(x: pMinX,     y: rect.maxY)
+        )
+
+        // Pill bottom — left segment after inner corner
+        p.addLine(to: CGPoint(x: pMinX, y: rect.maxY))
+
+        // Left outer anti-corner (concave fillet, g radius)
+        p.addQuadCurve(
+            to:      CGPoint(x: rect.minX, y: rect.maxY - g),
+            control: CGPoint(x: rect.minX, y: rect.maxY)
+        )
+
+        // Left outer wall up to top
         p.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
+
         p.closeSubpath()
         return p
     }
@@ -81,9 +92,6 @@ struct NotchShape: Shape {
 
 // MARK: - Pill View
 
-/// The always-visible collapsed notch pill.
-/// Renders the shape + mini-max eyes. Window must extend `outerGutterRadius`
-/// beyond the hardware notch on each side for the gutter curves to be visible.
 struct NotchPillView: View {
     var body: some View {
         ZStack {
@@ -91,12 +99,8 @@ struct NotchPillView: View {
                 .fill(.black)
 
             HStack(spacing: 10) {
-                Capsule()
-                    .fill(.white.opacity(0.75))
-                    .frame(width: 6, height: 6)
-                Capsule()
-                    .fill(.white.opacity(0.75))
-                    .frame(width: 6, height: 6)
+                Capsule().fill(.white.opacity(0.72)).frame(width: 6, height: 6)
+                Capsule().fill(.white.opacity(0.72)).frame(width: 6, height: 6)
             }
             .padding(.bottom, 3)
         }
@@ -104,8 +108,7 @@ struct NotchPillView: View {
 }
 
 #Preview {
-    // Grey bg = screen; black pill + gutters on each side
     NotchPillView()
-        .frame(width: 200, height: 48)   // 180 notch + 10 gutter each side
+        .frame(width: 200, height: 48)
         .background(Color(white: 0.2))
 }
