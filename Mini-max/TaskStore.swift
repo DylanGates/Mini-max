@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI
 
 enum TaskPriority: Int, Codable, CaseIterable {
     case low = 0, medium = 1, high = 2
