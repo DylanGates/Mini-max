@@ -1,0 +1,38 @@
+name: Build
+
+on:
+  push:
+    branches: [master, main, "feat/**"]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app
+
+      - name: Build (no signing)
+        run: |
+          xcodebuild build \
+            -project Mini-max.xcodeproj \
+            -scheme Mini-max \
+            -destination "platform=macOS" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | xcpretty
+
+      - name: Run unit tests
+        run: |
+          xcodebuild test \
+            -project Mini-max.xcodeproj \
+            -scheme Mini-max \
+            -destination "platform=macOS" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | xcpretty
