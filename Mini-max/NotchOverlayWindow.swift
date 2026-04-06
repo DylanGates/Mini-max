@@ -5,6 +5,9 @@ final class NotchOverlayWindow: NSPanel {
     var onMouseEntered: (() -> Void)?
     var onMouseExited: (() -> Void)?
 
+    let displayState = NotchDisplayState()
+    private var collapsedRect: CGRect = .zero
+
     init() {
         super.init(
             contentRect: CGRect(x: 0, y: 0, width: 200, height: 32),
@@ -21,7 +24,7 @@ final class NotchOverlayWindow: NSPanel {
         hidesOnDeactivate = false
         ignoresMouseEvents = false
 
-        let hostingView = NSHostingView(rootView: NotchPillView())
+        let hostingView = NSHostingView(rootView: NotchShellView(state: displayState))
         hostingView.layer?.backgroundColor = .clear
         contentView = hostingView
     }
@@ -29,24 +32,55 @@ final class NotchOverlayWindow: NSPanel {
     /// How many points the pill extends below the real hardware notch.
     static let bottomExtension: CGFloat = 12
 
-    /// Position the overlay to cover the real notch + extend below it.
-    /// The window top is flush with the screen top so the black fill merges with the bezel.
+    /// Position the overlay to cover the notch + extend below it.
     func positionOver(notchRect: CGRect) {
-        // Extend downward so the rounded bottom corners are visible
         let extendedRect = CGRect(
             x: notchRect.minX,
             y: notchRect.minY - NotchOverlayWindow.bottomExtension,
             width: notchRect.width,
             height: notchRect.height + NotchOverlayWindow.bottomExtension
         )
+        collapsedRect = extendedRect
         setFrame(extendedRect, display: true)
         orderFrontRegardless()
         addTrackingToContentView()
     }
 
+    /// Expand the overlay to fill the notch area with content (640 × 175).
+    func expand(on screen: NSScreen) {
+        let expandedWidth: CGFloat = 640
+        let expandedHeight: CGFloat = 175
+        let x = screen.frame.midX - expandedWidth / 2
+        let y = screen.frame.maxY - expandedHeight
+        let expandedFrame = CGRect(x: x, y: y, width: expandedWidth, height: expandedHeight)
+
+        displayState.isExpanded = true
+
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.3
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            animator().setFrame(expandedFrame, display: true)
+        } completionHandler: {
+            self.addTrackingToContentView()
+        }
+    }
+
+    /// Collapse back to the pill over the hardware notch.
+    func collapse() {
+        guard collapsedRect != .zero else { return }
+        displayState.isExpanded = false
+
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.2
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            animator().setFrame(collapsedRect, display: true)
+        } completionHandler: {
+            self.addTrackingToContentView()
+        }
+    }
+
     private func addTrackingToContentView() {
         guard let view = contentView else { return }
-        // Remove any existing tracking areas first.
         view.trackingAreas.forEach { view.removeTrackingArea($0) }
         let area = NSTrackingArea(
             rect: view.bounds,
