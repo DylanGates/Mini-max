@@ -16,7 +16,8 @@ struct LearningPanel: View {
     private let accent = Color(red: 0.48, green: 0.70, blue: 0.91)
 
     private var displayTopics: [LearningTopic] {
-        showTodayOnly ? store.todayTopics : store.topics
+        let base = showTodayOnly ? store.todayTopics : store.activeTopics
+        return base
     }
 
     var body: some View {
@@ -29,13 +30,28 @@ struct LearningPanel: View {
                     .padding(.bottom, 8)
             }
 
-            if displayTopics.isEmpty {
+            if displayTopics.isEmpty && store.completedTopics.isEmpty {
                 emptyState
             } else {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 6) {
                         ForEach(displayTopics) { topic in
                             TopicRow(topic: topic)
+                        }
+
+                        if !store.completedTopics.isEmpty && !showTodayOnly {
+                            HStack {
+                                Text("completed")
+                                    .font(.system(size: 8, weight: .medium))
+                                    .foregroundStyle(Color(white: 0.22))
+                                    .padding(.top, 6)
+                                    .padding(.bottom, 2)
+                                Spacer()
+                            }
+                            ForEach(store.completedTopics) { topic in
+                                TopicRow(topic: topic)
+                                    .opacity(0.45)
+                            }
                         }
                     }
                 }
@@ -189,6 +205,8 @@ private struct TopicRow: View {
     let topic: LearningTopic
     private let store = LearningStore.shared
     @State private var showDayPicker = false
+    @State private var showNotes = false
+    @State private var notesBuffer = ""
 
     private let accent = Color(red: 0.48, green: 0.70, blue: 0.91)
 
@@ -235,6 +253,18 @@ private struct TopicRow: View {
                     // Day schedule dots — tap to edit
                     Button { withAnimation { showDayPicker.toggle() } } label: {
                         dayScheduleView
+                    }
+                    .buttonStyle(.plain)
+
+                    // Notes toggle
+                    Button {
+                        if !showNotes { notesBuffer = topic.notes }
+                        withAnimation(.easeInOut(duration: 0.15)) { showNotes.toggle() }
+                        if !showNotes { store.updateNotes(topic, notes: notesBuffer) }
+                    } label: {
+                        Image(systemName: showNotes ? "note.text.badge.plus" : "note.text")
+                            .font(.system(size: 8))
+                            .foregroundStyle(topic.notes.isEmpty ? Color(white: 0.22) : accent.opacity(0.6))
                     }
                     .buttonStyle(.plain)
 
@@ -296,6 +326,22 @@ private struct TopicRow: View {
                         }
                         .buttonStyle(.plain)
                     }
+                }
+
+                // Inline notes editor
+                if showNotes {
+                    TextEditor(text: $notesBuffer)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color(white: 0.65))
+                        .scrollContentBackground(.hidden)
+                        .background(Color(white: 0.05))
+                        .frame(minHeight: 44, maxHeight: 80)
+                        .cornerRadius(4)
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(accent.opacity(0.2), lineWidth: 0.5))
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                        .onChange(of: notesBuffer) { _, new in
+                            store.updateNotes(topic, notes: new)
+                        }
                 }
             }
         }

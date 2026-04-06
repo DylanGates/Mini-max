@@ -56,6 +56,15 @@ final class LearningStore {
         save()
     }
 
+    func updateNotes(_ topic: LearningTopic, notes: String) {
+        guard let idx = topics.firstIndex(where: { $0.id == topic.id }) else { return }
+        topics[idx].notes = notes
+        save()
+    }
+
+    var completedTopics: [LearningTopic] { topics.filter { $0.progress == 100 } }
+    var activeTopics:    [LearningTopic] { topics.filter { $0.progress  < 100 } }
+
     // MARK: - Persistence
 
     private func save() {
