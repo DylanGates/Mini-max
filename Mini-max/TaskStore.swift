@@ -47,6 +47,14 @@ final class TaskStore {
         save()
     }
 
+    func movePending(fromOffsets: IndexSet, toOffset: Int) {
+        var pending   = tasks.filter { !$0.isCompleted }
+        let completed = tasks.filter {  $0.isCompleted }
+        pending.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        tasks = pending + completed
+        save()
+    }
+
     // Auto-clear tasks completed more than 24h ago
     private func clearOldCompleted() {
         let cutoff = Date().addingTimeInterval(-86400)

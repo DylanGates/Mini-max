@@ -42,15 +42,20 @@ struct TasksPanel: View {
             } else {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
-                        // Pending — tighter spacing, full opacity
-                        ForEach(store.pending) { task in
-                            TaskRow(task: task)
-                            if task.id != store.pending.last?.id {
-                                Divider()
-                                    .background(Color(white: 0.1))
-                                    .padding(.leading, 10)
+                        // Pending — drag-to-reorder via List
+                        List {
+                            ForEach(store.pending) { task in
+                                TaskRow(task: task)
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparatorTint(Color(white: 0.1))
+                                    .listRowInsets(EdgeInsets())
                             }
+                            .onMove { store.movePending(fromOffsets: $0, toOffset: $1) }
                         }
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
+                        .scrollDisabled(true)
+                        .frame(height: CGFloat(store.pending.count) * 38)
 
                         // Completed — recede with opacity + larger gap above
                         if !store.completed.isEmpty {
