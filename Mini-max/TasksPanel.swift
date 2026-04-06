@@ -71,7 +71,6 @@ struct TasksPanel: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
-                .environment(\.editMode, .constant(.active))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
