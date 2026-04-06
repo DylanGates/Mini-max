@@ -179,7 +179,7 @@ private struct NotchBatteryView: View {
     // Matches boring.notch: bolt when charging, plug when plugged-in only
     private var powerIcon: String? {
         if battery.isCharging { return "bolt" }
-        if battery.isPluggedIn { return "plug" }
+        if battery.isPluggedIn { return "powerplug" }
         return nil
     }
 
