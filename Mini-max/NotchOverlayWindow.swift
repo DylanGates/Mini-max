@@ -33,13 +33,16 @@ final class NotchOverlayWindow: NSPanel {
 
     /// How many points the pill extends below the real hardware notch.
     static let bottomExtension: CGFloat = 12
+    /// Extra width on each side for the outer gutter blend curves.
+    static let gutterWidth: CGFloat = 10
 
-    /// Position the overlay to cover the notch + extend below it.
+    /// Position the overlay to cover the notch + extend below it + gutter on each side.
     func positionOver(notchRect: CGRect) {
+        let g = NotchOverlayWindow.gutterWidth
         let extendedRect = CGRect(
-            x: notchRect.minX,
+            x: notchRect.minX - g,
             y: notchRect.minY - NotchOverlayWindow.bottomExtension,
-            width: notchRect.width,
+            width: notchRect.width + 2 * g,
             height: notchRect.height + NotchOverlayWindow.bottomExtension
         )
         collapsedRect = extendedRect

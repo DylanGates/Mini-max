@@ -20,22 +20,25 @@ struct NotchShellView: View {
 
     var body: some View {
         ZStack {
-            NotchShape(bottomCornerRadius: state.isExpanded ? 28 : 10)
-                .fill(Color(red: 11/255, green: 11/255, blue: 11/255))
+            NotchShape(
+                bottomCornerRadius: state.isExpanded ? 28 : 10,
+                outerGutterRadius:  state.isExpanded ? 0 : 10
+            )
+            .fill(Color(red: 11/255, green: 11/255, blue: 11/255))
 
-            // Pill eyes (closed state)
-            HStack(spacing: 8) {
-                Circle().fill(.white.opacity(0.8)).frame(width: 5, height: 5)
-                Circle().fill(.white.opacity(0.8)).frame(width: 5, height: 5)
+            // Pill eyes (collapsed state)
+            HStack(spacing: 10) {
+                Capsule().fill(.white.opacity(0.72)).frame(width: 6, height: 6)
+                Capsule().fill(.white.opacity(0.72)).frame(width: 6, height: 6)
             }
-            .padding(.bottom, 4)
+            .padding(.bottom, 3)
             .opacity(state.isExpanded ? 0 : 1)
 
             // Expanded content
             ExpandedNotchContent()
                 .opacity(state.isExpanded ? 1 : 0)
         }
-        .animation(.easeOut(duration: 0.25), value: state.isExpanded)
+        .animation(.spring(response: 0.32, dampingFraction: 0.78), value: state.isExpanded)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
