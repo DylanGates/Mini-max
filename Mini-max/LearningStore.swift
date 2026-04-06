@@ -1,12 +1,14 @@
 import Foundation
 import Observation
 
+// Weekday indices matching Calendar: 1=Sun 2=Mon 3=Tue 4=Wed 5=Thu 6=Fri 7=Sat
 struct LearningTopic: Identifiable, Codable {
     var id = UUID()
     var title: String
     var category: String
     var notes: String
-    var progress: Int  // 0-100
+    var progress: Int        // 0–100
+    var scheduledDays: Set<Int>  // Calendar weekday values; empty = any day
     var dateAdded: Date
 }
 
@@ -20,8 +22,20 @@ final class LearningStore {
 
     private init() { load() }
 
-    func add(title: String, category: String) {
-        topics.append(LearningTopic(title: title, category: category, notes: "", progress: 0, dateAdded: Date()))
+    // MARK: - Today
+
+    var todayTopics: [LearningTopic] {
+        let today = Calendar.current.component(.weekday, from: Date())
+        return topics.filter { $0.scheduledDays.isEmpty || $0.scheduledDays.contains(today) }
+    }
+
+    // MARK: - Mutations
+
+    func add(title: String, category: String, scheduledDays: Set<Int> = []) {
+        topics.append(LearningTopic(
+            title: title, category: category, notes: "",
+            progress: 0, scheduledDays: scheduledDays, dateAdded: Date()
+        ))
         save()
     }
 
@@ -35,6 +49,14 @@ final class LearningStore {
         topics[idx].progress = max(0, min(100, progress))
         save()
     }
+
+    func updateDays(_ topic: LearningTopic, days: Set<Int>) {
+        guard let idx = topics.firstIndex(where: { $0.id == topic.id }) else { return }
+        topics[idx].scheduledDays = days
+        save()
+    }
+
+    // MARK: - Persistence
 
     private func save() {
         if let data = try? JSONEncoder().encode(topics) {
