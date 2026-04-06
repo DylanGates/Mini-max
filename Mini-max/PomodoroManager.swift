@@ -9,10 +9,9 @@ enum PomodoroPhase {
 
     var remaining: TimeInterval {
         switch self {
-        case .idle:                         return 0
-        case .focus(let r),
-             .shortBreak(let r),
-             .longBreak(let r):             return r
+        case .idle:                                 return 0
+        case .focus(let r), .shortBreak(let r),
+             .longBreak(let r):                     return r
         }
     }
 
@@ -32,16 +31,31 @@ enum PomodoroPhase {
 final class PomodoroManager {
     static let shared = PomodoroManager()
 
-    let focusDuration:      TimeInterval = 25 * 60
-    let shortBreakDuration: TimeInterval =  5 * 60
-    let longBreakDuration:  TimeInterval = 15 * 60
-    let sessionsBeforeLong  = 4
+    // MARK: - Config (user-configurable, persisted)
+
+    var focusMinutes: Int {
+        didSet { UserDefaults.standard.set(focusMinutes, forKey: "minimax.pomodoro.focusMin") }
+    }
+    var shortBreakMinutes: Int {
+        didSet { UserDefaults.standard.set(shortBreakMinutes, forKey: "minimax.pomodoro.shortMin") }
+    }
+    var longBreakMinutes: Int {
+        didSet { UserDefaults.standard.set(longBreakMinutes, forKey: "minimax.pomodoro.longMin") }
+    }
+    var sessionsBeforeLong: Int {
+        didSet { UserDefaults.standard.set(sessionsBeforeLong, forKey: "minimax.pomodoro.sessBeforeLong") }
+    }
+
+    var focusDuration:      TimeInterval { TimeInterval(focusMinutes * 60) }
+    var shortBreakDuration: TimeInterval { TimeInterval(shortBreakMinutes * 60) }
+    var longBreakDuration:  TimeInterval { TimeInterval(longBreakMinutes * 60) }
+
+    // MARK: - State
 
     var phase: PomodoroPhase = .idle
     var isPaused = false
     var completedSessions: Int = 0
 
-    // Slot dots: true = filled
     var sessionDots: [Bool] {
         (0..<sessionsBeforeLong).map { $0 < (completedSessions % sessionsBeforeLong) }
     }
@@ -50,7 +64,12 @@ final class PomodoroManager {
     private let sessionsKey = "minimax.pomodoro.sessions"
 
     private init() {
-        completedSessions = UserDefaults.standard.integer(forKey: sessionsKey)
+        let d = UserDefaults.standard
+        focusMinutes       = d.object(forKey: "minimax.pomodoro.focusMin")      != nil ? d.integer(forKey: "minimax.pomodoro.focusMin")      : 25
+        shortBreakMinutes  = d.object(forKey: "minimax.pomodoro.shortMin")      != nil ? d.integer(forKey: "minimax.pomodoro.shortMin")      : 5
+        longBreakMinutes   = d.object(forKey: "minimax.pomodoro.longMin")       != nil ? d.integer(forKey: "minimax.pomodoro.longMin")       : 15
+        sessionsBeforeLong = d.object(forKey: "minimax.pomodoro.sessBeforeLong") != nil ? d.integer(forKey: "minimax.pomodoro.sessBeforeLong") : 4
+        completedSessions  = d.integer(forKey: sessionsKey)
     }
 
     // MARK: - Controls
