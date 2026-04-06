@@ -33,28 +33,37 @@ struct LearningPanel: View {
             if displayTopics.isEmpty && store.completedTopics.isEmpty {
                 emptyState
             } else {
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 6) {
-                        ForEach(displayTopics) { topic in
-                            TopicRow(topic: topic)
-                        }
+                List {
+                    ForEach(displayTopics) { topic in
+                        TopicRow(topic: topic)
+                            .listRowBackground(Color.clear)
+                            .listRowSeparatorTint(Color(white: 0.08))
+                            .listRowInsets(EdgeInsets())
+                    }
+                    .onMove { store.moveActive(fromOffsets: $0, toOffset: $1) }
 
-                        if !store.completedTopics.isEmpty && !showTodayOnly {
-                            HStack {
-                                Text("completed")
-                                    .font(.system(size: 8, weight: .medium))
-                                    .foregroundStyle(Color(white: 0.22))
-                                    .padding(.top, 6)
-                                    .padding(.bottom, 2)
-                                Spacer()
-                            }
+                    if !store.completedTopics.isEmpty && !showTodayOnly {
+                        Section {
                             ForEach(store.completedTopics) { topic in
                                 TopicRow(topic: topic)
                                     .opacity(0.45)
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparatorTint(Color(white: 0.06))
+                                    .listRowInsets(EdgeInsets())
                             }
+                        } header: {
+                            Text("completed")
+                                .font(.system(size: 8, weight: .medium))
+                                .foregroundStyle(Color(white: 0.22))
+                                .textCase(nil)
+                                .padding(.leading, 10)
+                                .padding(.vertical, 4)
                         }
+                        .listSectionSeparator(.hidden)
                     }
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

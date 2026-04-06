@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI
 
 // Weekday indices matching Calendar: 1=Sun 2=Mon 3=Tue 4=Wed 5=Thu 6=Fri 7=Sat
 struct LearningTopic: Identifiable, Codable {
@@ -64,6 +65,14 @@ final class LearningStore {
 
     var completedTopics: [LearningTopic] { topics.filter { $0.progress == 100 } }
     var activeTopics:    [LearningTopic] { topics.filter { $0.progress  < 100 } }
+
+    func moveActive(fromOffsets: IndexSet, toOffset: Int) {
+        var active = topics.filter { $0.progress < 100 }
+        let completed = topics.filter { $0.progress == 100 }
+        active.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        topics = active + completed
+        save()
+    }
 
     // MARK: - Persistence
 

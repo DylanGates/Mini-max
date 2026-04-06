@@ -156,7 +156,7 @@ private struct TabPillButton: View {
 private struct NotchSettingsButton: View {
     var body: some View {
         Button {
-            // TODO: open settings window (Phase 2)
+            SettingsWindowController.shared.showWindow()
         } label: {
             Capsule()
                 .fill(Color(white: 0.13))
@@ -273,18 +273,13 @@ private struct MiniMaxHomePanel: View {
 
             Spacer(minLength: 0)
 
-            // Center: eyes + state
+            // Center: eyes + state label
             VStack(alignment: .center, spacing: 4) {
                 MiniMaxEyesView()
                     .frame(maxWidth: .infinity)
                     .frame(height: 32)
 
-                HStack(spacing: 5) {
-                    ThinkingBubbleView()
-                    Text("thinking...")
-                        .font(.system(size: 8, weight: .light))
-                        .foregroundStyle(Color(white: 0.2))
-                }
+                pomodoroStateLabel
             }
 
             Spacer(minLength: 0)
@@ -293,6 +288,47 @@ private struct MiniMaxHomePanel: View {
             todaySummary
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var pomodoroStateLabel: some View {
+        switch pomodoro.phase {
+        case .idle:
+            HStack(spacing: 5) {
+                ThinkingBubbleView()
+                Text("thinking...")
+                    .font(.system(size: 8, weight: .light))
+                    .foregroundStyle(Color(white: 0.2))
+            }
+        case .focus(let r):
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(Color(red: 0.48, green: 0.70, blue: 0.91))
+                    .frame(width: 5, height: 5)
+                    .opacity(0.8)
+                Text("focus · \(Int(r / 60)):\(String(format: "%02d", Int(r) % 60))")
+                    .font(.system(size: 8, weight: .medium, design: .monospaced))
+                    .foregroundStyle(Color(red: 0.48, green: 0.70, blue: 0.91).opacity(0.8))
+            }
+        case .shortBreak(let r):
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(Color(red: 0.27, green: 0.75, blue: 0.50))
+                    .frame(width: 5, height: 5)
+                Text("break · \(Int(r / 60)):\(String(format: "%02d", Int(r) % 60))")
+                    .font(.system(size: 8, weight: .medium, design: .monospaced))
+                    .foregroundStyle(Color(red: 0.27, green: 0.75, blue: 0.50).opacity(0.8))
+            }
+        case .longBreak(let r):
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(Color(red: 0.27, green: 0.75, blue: 0.50))
+                    .frame(width: 5, height: 5)
+                Text("long break · \(Int(r / 60)):\(String(format: "%02d", Int(r) % 60))")
+                    .font(.system(size: 8, weight: .medium, design: .monospaced))
+                    .foregroundStyle(Color(red: 0.27, green: 0.75, blue: 0.50).opacity(0.8))
+            }
+        }
     }
 
     private var todaySummary: some View {
@@ -773,6 +809,8 @@ private struct StreakPanel: View {
                 .buttonStyle(.plain)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color.black)
     }
 
     // MARK: - Token Setup (one row per account)
@@ -981,8 +1019,43 @@ private struct StatLine: View {
 // MARK: - Eyes
 
 struct MiniMaxEyesView: View {
+    private let pomodoro = PomodoroManager.shared
     @State private var blinking = false
     private let timer = Timer.publish(every: 3.5, on: .main, in: .common).autoconnect()
+
+    // Focus state narrows eyes to intense slits; break = wider relaxed; idle = normal
+    private var eyeHeight: CGFloat {
+        if blinking { return 2 }
+        switch pomodoro.phase {
+        case .focus:                  return 3   // narrow focused slit
+        case .shortBreak, .longBreak: return 10  // wide relaxed
+        case .idle:                   return 7
+        }
+    }
+
+    private var eyeWidth: CGFloat {
+        switch pomodoro.phase {
+        case .focus:                  return 28  // wider when focused — determined look
+        case .shortBreak, .longBreak: return 18
+        case .idle:                   return 22
+        }
+    }
+
+    private var eyeColor: Color {
+        switch pomodoro.phase {
+        case .focus:                  return Color(red: 0.48, green: 0.70, blue: 0.91)
+        case .shortBreak, .longBreak: return Color(red: 0.27, green: 0.75, blue: 0.50)
+        case .idle:                   return Color(red: 0.88, green: 0.93, blue: 0.97)
+        }
+    }
+
+    private var glowColor: Color {
+        switch pomodoro.phase {
+        case .focus:                  return Color(red: 0.48, green: 0.70, blue: 0.91)
+        case .shortBreak, .longBreak: return Color(red: 0.27, green: 0.75, blue: 0.50)
+        case .idle:                   return Color(red: 0.48, green: 0.70, blue: 0.91)
+        }
+    }
 
     var body: some View {
         HStack(spacing: 18) {
@@ -991,18 +1064,19 @@ struct MiniMaxEyesView: View {
             eyePill
             Spacer()
         }
-        .onReceive(timer) { _ in blink() }
+        // Only blink when idle — focus eyes don't blink
+        .onReceive(timer) { _ in if pomodoro.phase.isIdle { blink() } }
     }
 
     private var eyePill: some View {
-        RoundedRectangle(cornerRadius: 4)
-            .fill(Color(red: 0.88, green: 0.93, blue: 0.97))
-            .frame(width: 22, height: blinking ? 2 : 7)
-            .shadow(
-                color: Color(red: 0.48, green: 0.70, blue: 0.91).opacity(0.5),
-                radius: 8
-            )
-            .animation(.easeInOut(duration: 0.1), value: blinking)
+        RoundedRectangle(cornerRadius: blinking ? 1 : 4)
+            .fill(eyeColor)
+            .frame(width: eyeWidth, height: eyeHeight)
+            .shadow(color: glowColor.opacity(pomodoro.phase.isIdle ? 0.4 : 0.75), radius: pomodoro.phase.isIdle ? 6 : 12)
+            .animation(.easeInOut(duration: 0.25), value: blinking)
+            .animation(.spring(response: 0.4, dampingFraction: 0.7), value: eyeHeight)
+            .animation(.spring(response: 0.4, dampingFraction: 0.7), value: eyeWidth)
+            .animation(.easeInOut(duration: 0.3), value: eyeColor)
     }
 
     private func blink() {
