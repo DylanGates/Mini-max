@@ -23,6 +23,8 @@ final class NotchOverlayWindow: NSPanel {
         hasShadow = false
         hidesOnDeactivate = false
         ignoresMouseEvents = false
+        // Allow text fields to receive keyboard input when user clicks inside
+        acceptsMouseMovedEvents = true
 
         let hostingView = NSHostingView(rootView: NotchShellView(state: displayState))
         hostingView.layer?.backgroundColor = .clear
@@ -69,6 +71,7 @@ final class NotchOverlayWindow: NSPanel {
     func collapse() {
         guard collapsedRect != .zero else { return }
         displayState.isExpanded = false
+        resignKey()  // Release keyboard focus so the previous app can type again
 
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.2
@@ -89,6 +92,18 @@ final class NotchOverlayWindow: NSPanel {
             userInfo: nil
         )
         view.addTrackingArea(area)
+    }
+
+    // Allow text fields and buttons to receive keyboard events
+    override var canBecomeKey: Bool { true }
+
+    // Activate on click so text fields work immediately
+    override func mouseDown(with event: NSEvent) {
+        if displayState.isExpanded {
+            NSApp.activate(ignoringOtherApps: true)
+            makeKey()
+        }
+        super.mouseDown(with: event)
     }
 
     override func mouseEntered(with event: NSEvent) {
