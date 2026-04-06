@@ -25,21 +25,46 @@ final class GitHubContributionStore {
     var fetchError: String? = nil
     var isFetching = false
 
-    private let tokenKey = "minimax.github.pat"
-    private let cacheKey = "minimax.github.contributionCache"
-    private let cacheTimeKey = "minimax.github.contributionCacheTime"
-    private let cacheTTL: TimeInterval = 3600  // 1 hour
+    // Per-account tokens: username → PAT.
+    // A per-account token includes private contributions for that account.
+    // Falls back to globalToken for public-only data.
+    private let perAccountKey = "minimax.github.perAccountTokens"  // [String:String] JSON
+    private let cacheKey      = "minimax.github.contributionCache"
+    private let cacheTimeKey  = "minimax.github.contributionCacheTime"
+    private let cacheTTL: TimeInterval = 3600
 
-    var token: String {
-        get { UserDefaults.standard.string(forKey: tokenKey) ?? "" }
-        set { UserDefaults.standard.set(newValue, forKey: tokenKey) }
+    var perAccountTokens: [String: String] {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: perAccountKey),
+                  let dict = try? JSONSerialization.jsonObject(with: data) as? [String: String]
+            else { return [:] }
+            return dict
+        }
+        set {
+            if let data = try? JSONSerialization.data(withJSONObject: newValue) {
+                UserDefaults.standard.set(data, forKey: perAccountKey)
+            }
+        }
     }
 
-    var hasToken: Bool { !token.isEmpty }
+    func token(for username: String) -> String {
+        perAccountTokens[username] ?? ""
+    }
+
+    func setToken(_ token: String, for username: String) {
+        var tokens = perAccountTokens
+        if token.isEmpty { tokens.removeValue(forKey: username) }
+        else { tokens[username] = token }
+        perAccountTokens = tokens
+    }
+
+    var hasAnyToken: Bool {
+        !perAccountTokens.isEmpty
+    }
 
     private init() {
         loadCache()
-        if hasToken && contributionsByUser.isEmpty {
+        if hasAnyToken {
             Task { await fetchAll() }
         }
     }
@@ -47,10 +72,9 @@ final class GitHubContributionStore {
     // MARK: - Fetch
 
     func fetchAll() async {
-        guard hasToken else { return }
+        guard hasAnyToken else { return }
         await MainActor.run { isFetching = true; fetchError = nil }
 
-        // Check cache freshness
         if let cacheTime = UserDefaults.standard.object(forKey: cacheTimeKey) as? Date,
            Date().timeIntervalSince(cacheTime) < cacheTTL,
            !contributionsByUser.isEmpty {
@@ -62,11 +86,13 @@ final class GitHubContributionStore {
         var results: [String: [String: DayContribution]] = [:]
 
         for account in accounts {
+            let pat = token(for: account.username)
+            guard !pat.isEmpty else { continue }
             do {
-                let data = try await fetchContributions(username: account.username)
+                let data = try await fetchContributions(username: account.username, token: pat)
                 results[account.username] = data
             } catch {
-                await MainActor.run { fetchError = error.localizedDescription }
+                await MainActor.run { fetchError = "\(account.username): \(error.localizedDescription)" }
             }
         }
 
@@ -78,30 +104,33 @@ final class GitHubContributionStore {
         }
     }
 
+    func forceRefresh() async {
+        UserDefaults.standard.removeObject(forKey: cacheTimeKey)
+        await fetchAll()
+    }
+
     // MARK: - GraphQL
 
-    private func fetchContributions(username: String) async throws -> [String: DayContribution] {
+    private func fetchContributions(username: String, token: String) async throws -> [String: DayContribution] {
         let cal = Calendar(identifier: .gregorian)
         let from = cal.date(byAdding: .day, value: -(16 * 7), to: Date())!
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
 
-        let query = """
-        {
-          "query": "query($username: String!, $from: DateTime!, $to: DateTime!) { user(login: $username) { contributionsCollection(from: $from, to: $to) { contributionCalendar { weeks { contributionDays { contributionCount date } } } } } }",
-          "variables": {
-            "username": "\(username)",
-            "from": "\(formatter.string(from: from))",
-            "to": "\(formatter.string(from: Date()))"
-          }
-        }
-        """
+        let body: [String: Any] = [
+            "query": "query($username: String!, $from: DateTime!, $to: DateTime!) { user(login: $username) { contributionsCollection(from: $from, to: $to) { contributionCalendar { weeks { contributionDays { contributionCount date } } } } } }",
+            "variables": [
+                "username": username,
+                "from": formatter.string(from: from),
+                "to": formatter.string(from: Date())
+            ]
+        ]
 
         var request = URLRequest(url: URL(string: "https://api.github.com/graphql")!)
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = query.data(using: .utf8)
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
@@ -138,13 +167,11 @@ final class GitHubContributionStore {
         return result
     }
 
-    // MARK: - Cache (lightweight — encode as [username: [dateStr: count]])
+    // MARK: - Cache
 
     private func saveCache(_ data: [String: [String: DayContribution]]) {
         var flat: [String: [String: Int]] = [:]
-        for (user, days) in data {
-            flat[user] = days.mapValues(\.count)
-        }
+        for (user, days) in data { flat[user] = days.mapValues(\.count) }
         if let encoded = try? JSONSerialization.data(withJSONObject: flat) {
             UserDefaults.standard.set(encoded, forKey: cacheKey)
         }

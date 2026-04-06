@@ -599,7 +599,7 @@ private struct StreakPanel: View {
     private let contributions = GitHubContributionStore.shared
 
     @State private var showTokenSetup = false
-    @State private var tokenDraft = ""
+    @State private var tokenDrafts: [String: String] = [:]
 
     // The Sunday that starts the oldest visible week
     private var gridStartDate: Date {
@@ -666,8 +666,8 @@ private struct StreakPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if !contributions.hasToken || showTokenSetup {
-                tokenSetupRow
+            if !contributions.hasAnyToken || showTokenSetup {
+                tokenSetupPanel
                     .padding(.bottom, 8)
             }
 
@@ -686,49 +686,72 @@ private struct StreakPanel: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .task {
-            if contributions.hasToken {
+            if contributions.hasAnyToken {
                 await contributions.fetchAll()
             }
         }
     }
 
-    // MARK: - Token Setup
+    // MARK: - Token Setup (one row per account)
 
-    private var tokenSetupRow: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "key")
-                .font(.system(size: 9))
-                .foregroundStyle(Color(white: 0.35))
-            SecureField("GitHub PAT (repo + read:user)", text: $tokenDraft)
-                .font(.system(size: 10))
-                .textFieldStyle(.plain)
-                .foregroundStyle(.white)
-                .onSubmit { saveToken() }
-            Button(action: saveToken) {
-                Image(systemName: "return")
+    private var tokenSetupPanel: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("GitHub PATs — includes private contributions")
+                    .font(.system(size: 8, weight: .medium))
+                    .foregroundStyle(Color(white: 0.3))
+                Spacer()
+                if contributions.hasAnyToken {
+                    Button { showTokenSetup = false } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9))
+                            .foregroundStyle(Color(white: 0.28))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            ForEach(accounts) { account in
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(account.dotColor)
+                        .frame(width: 5, height: 5)
+                    Text(account.username)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(Color(white: 0.5))
+                        .frame(width: 72, alignment: .leading)
+                    SecureField("PAT (read:user scope)", text: Binding(
+                        get: { tokenDrafts[account.username] ?? contributions.token(for: account.username) },
+                        set: { tokenDrafts[account.username] = $0 }
+                    ))
                     .font(.system(size: 9))
+                    .textFieldStyle(.plain)
+                    .foregroundStyle(.white)
+                    .onSubmit { saveTokens() }
+                }
+            }
+
+            Button(action: saveTokens) {
+                Text("Save & Fetch")
+                    .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(Color(red: 0.27, green: 0.75, blue: 0.43))
             }
             .buttonStyle(.plain)
-            if contributions.hasToken {
-                Button { showTokenSetup = false } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9))
-                        .foregroundStyle(Color(white: 0.3))
-                }
-                .buttonStyle(.plain)
-            }
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.vertical, 7)
         .background(RoundedRectangle(cornerRadius: 6).fill(Color(white: 0.06)))
-        .onAppear { tokenDraft = contributions.token }
     }
 
-    private func saveToken() {
-        contributions.token = tokenDraft
+    private func saveTokens() {
+        for account in accounts {
+            if let draft = tokenDrafts[account.username] {
+                contributions.setToken(draft, for: account.username)
+            }
+        }
+        tokenDrafts = [:]
         showTokenSetup = false
-        Task { await contributions.fetchAll() }
+        Task { await contributions.forceRefresh() }
     }
 
     // MARK: Stats
@@ -753,13 +776,10 @@ private struct StreakPanel: View {
             Spacer(minLength: 0)
 
             // Token / refresh controls
-            Button {
-                if contributions.hasToken { showTokenSetup.toggle() }
-                else { showTokenSetup = true }
-            } label: {
+            Button { showTokenSetup.toggle() } label: {
                 Image(systemName: "key")
                     .font(.system(size: 9))
-                    .foregroundStyle(contributions.hasToken ? Color(white: 0.3) : Color(red: 0.88, green: 0.55, blue: 0.2))
+                    .foregroundStyle(contributions.hasAnyToken ? Color(white: 0.3) : Color(red: 0.88, green: 0.55, blue: 0.2))
             }
             .buttonStyle(.plain)
 
