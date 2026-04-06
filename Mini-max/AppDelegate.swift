@@ -34,16 +34,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         overlayWindow?.positionOver(notchRect: pillRect)
 
         overlayWindow?.onMouseEntered = { [weak self] in
-            self?.cancelHideTimer()
-            self?.showPanel()
+            guard let self, let screen = NSScreen.builtIn else { return }
+            cancelHideTimer()
+            overlayWindow?.expand(on: screen)
+            viewModel.showPanel()
         }
 
         overlayWindow?.onMouseExited = { [weak self] in
             self?.scheduleHide(after: 0.4)
         }
-
-        notchWindow?.onMouseEntered = { [weak self] in self?.cancelHideTimer() }
-        notchWindow?.onMouseExited = { [weak self] in self?.hidePanel() }
     }
 
     private func setupHotkey() {
@@ -100,6 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func hidePanel() {
+        overlayWindow?.collapse()
         notchWindow?.hide()
         viewModel.hidePanel()
     }
