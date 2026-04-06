@@ -286,7 +286,7 @@ private struct MiniMaxHomePanel: View {
     }
 
     private var todaySummary: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             SummaryChip(
                 icon: "checkmark.circle",
                 value: "\(tasks.completed.count)",
@@ -305,6 +305,13 @@ private struct MiniMaxHomePanel: View {
                 label: "topics",
                 color: Color(red: 0.75, green: 0.55, blue: 0.90)
             )
+            Spacer(minLength: 0)
+            Button { DataExporter.export() } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 9))
+                    .foregroundStyle(Color(white: 0.28))
+            }
+            .buttonStyle(.plain)
         }
     }
 }
@@ -588,26 +595,11 @@ private struct StreakPanel: View {
     static let cellSize: CGFloat = 13
     static let cellGap:  CGFloat = 3
 
-    private let accounts = GitHubAccountManager.shared.accounts
+    private let accounts     = GitHubAccountManager.shared.accounts
+    private let contributions = GitHubContributionStore.shared
 
-    // Per-account mock levels: account index → (day-offset → intensity 0-4)
-    // Seeds differ per account so patterns look distinct.
-    // Weekends ~30 % chance; weekdays ~70 % chance.
-    private var allLevels: [[Int: Int]] {
-        accounts.enumerated().map { idx, _ in
-            let seed: UInt32 = [2654435761, 1234567891, 3141592653][idx % 3]
-            var data: [Int: Int] = [:]
-            for i in 0..<(Self.weekCount * 7) {
-                let isWeekend = (i % 7 == 0 || i % 7 == 6)
-                let h = UInt32(bitPattern: Int32(bitPattern: UInt32(i) &* seed)) & 0xFFFF
-                let threshold: UInt32 = isWeekend ? 5000 : 11000
-                if h < threshold {
-                    data[i] = min(Int(Double(h) / Double(threshold) * 4) + 1, 4)
-                }
-            }
-            return data
-        }
-    }
+    @State private var showTokenSetup = false
+    @State private var tokenDraft = ""
 
     // The Sunday that starts the oldest visible week
     private var gridStartDate: Date {
@@ -618,15 +610,125 @@ private struct StreakPanel: View {
         return cal.date(from: comps) ?? weeksAgo
     }
 
-    private var currentStreak: Int { 14 }
-    private var longestStreak: Int { 31 }
+    private var dateFormatter: DateFormatter {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = TimeZone(identifier: "UTC")
+        return df
+    }
+
+    // Returns (level, accountIndex) for a given date
+    private func cellInfo(for date: Date) -> (level: Int, accIdx: Int) {
+        let key = dateFormatter.string(from: date)
+        var best: (level: Int, accIdx: Int) = (0, 0)
+        for (idx, account) in accounts.enumerated() {
+            let level = contributions.contributionsByUser[account.username]?[key]?.level ?? 0
+            if level > best.level { best = (level, idx) }
+        }
+        return best
+    }
+
+    private var currentStreak: Int {
+        guard !accounts.isEmpty else { return 0 }
+        let df = dateFormatter
+        var streak = 0
+        var day = Date()
+        let cal = Calendar(identifier: .gregorian)
+        while true {
+            let key = df.string(from: day)
+            let hasActivity = accounts.contains { acc in
+                (contributions.contributionsByUser[acc.username]?[key]?.count ?? 0) > 0
+            }
+            if hasActivity { streak += 1 } else { break }
+            day = cal.date(byAdding: .day, value: -1, to: day)!
+        }
+        return streak
+    }
+
+    private var longestStreak: Int {
+        guard !accounts.isEmpty else { return 0 }
+        let df = dateFormatter
+        let cal = Calendar(identifier: .gregorian)
+        let start = gridStartDate
+        var longest = 0
+        var current = 0
+        for i in 0..<(Self.weekCount * 7) {
+            let date = cal.date(byAdding: .day, value: i, to: start)!
+            if date > Date() { break }
+            let key = df.string(from: date)
+            let hasActivity = accounts.contains { acc in
+                (contributions.contributionsByUser[acc.username]?[key]?.count ?? 0) > 0
+            }
+            if hasActivity { current += 1; longest = max(longest, current) } else { current = 0 }
+        }
+        return longest
+    }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 18) {
-            statsColumn
-            heatmapSection
+        VStack(alignment: .leading, spacing: 0) {
+            if !contributions.hasToken || showTokenSetup {
+                tokenSetupRow
+                    .padding(.bottom, 8)
+            }
+
+            HStack(alignment: .top, spacing: 18) {
+                statsColumn
+                heatmapSection
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .overlay(alignment: .topTrailing) {
+                if contributions.isFetching {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .frame(width: 16, height: 16)
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .task {
+            if contributions.hasToken {
+                await contributions.fetchAll()
+            }
+        }
+    }
+
+    // MARK: - Token Setup
+
+    private var tokenSetupRow: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "key")
+                .font(.system(size: 9))
+                .foregroundStyle(Color(white: 0.35))
+            SecureField("GitHub PAT (repo + read:user)", text: $tokenDraft)
+                .font(.system(size: 10))
+                .textFieldStyle(.plain)
+                .foregroundStyle(.white)
+                .onSubmit { saveToken() }
+            Button(action: saveToken) {
+                Image(systemName: "return")
+                    .font(.system(size: 9))
+                    .foregroundStyle(Color(red: 0.27, green: 0.75, blue: 0.43))
+            }
+            .buttonStyle(.plain)
+            if contributions.hasToken {
+                Button { showTokenSetup = false } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9))
+                        .foregroundStyle(Color(white: 0.3))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 6).fill(Color(white: 0.06)))
+        .onAppear { tokenDraft = contributions.token }
+    }
+
+    private func saveToken() {
+        contributions.token = tokenDraft
+        showTokenSetup = false
+        Task { await contributions.fetchAll() }
     }
 
     // MARK: Stats
@@ -646,11 +748,20 @@ private struct StreakPanel: View {
                 .fill(Color(white: 0.15))
                 .frame(height: 0.5)
 
-            VStack(alignment: .leading, spacing: 5) {
-                StatLine(label: "longest", value: "\(longestStreak)d")
-            }
+            StatLine(label: "longest", value: "\(longestStreak)d")
 
             Spacer(minLength: 0)
+
+            // Token / refresh controls
+            Button {
+                if contributions.hasToken { showTokenSetup.toggle() }
+                else { showTokenSetup = true }
+            } label: {
+                Image(systemName: "key")
+                    .font(.system(size: 9))
+                    .foregroundStyle(contributions.hasToken ? Color(white: 0.3) : Color(red: 0.88, green: 0.55, blue: 0.2))
+            }
+            .buttonStyle(.plain)
 
             // Account legend
             VStack(alignment: .leading, spacing: 4) {
@@ -666,6 +777,13 @@ private struct StreakPanel: View {
                     }
                 }
             }
+
+            if let err = contributions.fetchError {
+                Text(err)
+                    .font(.system(size: 7))
+                    .foregroundStyle(Color(red: 0.88, green: 0.32, blue: 0.32))
+                    .lineLimit(2)
+            }
         }
         .frame(width: 76)
     }
@@ -673,10 +791,9 @@ private struct StreakPanel: View {
     // MARK: Heatmap
 
     private var heatmapSection: some View {
-        let start   = gridStartDate
-        let cal     = Calendar(identifier: .gregorian)
-        let today   = Date()
-        let snap    = allLevels
+        let start = gridStartDate
+        let cal   = Calendar(identifier: .gregorian)
+        let today = Date()
 
         return VStack(alignment: .leading, spacing: Self.cellGap) {
             // Month labels
@@ -697,7 +814,6 @@ private struct StreakPanel: View {
 
             // Day labels + week columns
             HStack(alignment: .top, spacing: Self.cellGap) {
-                // Day-of-week row labels (Sun=0 … Sat=6), show M/W/F
                 let rowLabels = ["", "M", "", "W", "", "F", ""]
                 VStack(spacing: Self.cellGap) {
                     ForEach(0..<7, id: \.self) { d in
@@ -708,28 +824,20 @@ private struct StreakPanel: View {
                     }
                 }
 
-                // Week columns
                 ForEach(0..<Self.weekCount, id: \.self) { w in
                     VStack(spacing: Self.cellGap) {
                         ForEach(0..<7, id: \.self) { d in
-                            let offset = w * 7 + d
-                            let date   = cal.date(byAdding: .day, value: offset, to: start)!
+                            let date = cal.date(byAdding: .day, value: w * 7 + d, to: start)!
                             if date > today {
-                                // Future — invisible placeholder
                                 RoundedRectangle(cornerRadius: 2)
                                     .fill(Color.clear)
                                     .frame(width: Self.cellSize, height: Self.cellSize)
                             } else {
-                                // Dominant account: highest level wins; tie → lowest account index
-                                let dominant = snap.enumerated().max(by: {
-                                    ($0.element[offset] ?? 0) < ($1.element[offset] ?? 0)
-                                })
-                                let accIdx = dominant?.offset ?? 0
-                                let level  = dominant?.element[offset] ?? 0
-                                let theme  = accounts.indices.contains(accIdx)
-                                    ? accounts[accIdx].theme
+                                let info  = cellInfo(for: date)
+                                let theme = accounts.indices.contains(info.accIdx)
+                                    ? accounts[info.accIdx].theme
                                     : AccountTheme.green
-                                MultiHeatCell(level: level, theme: theme)
+                                MultiHeatCell(level: info.level, theme: theme)
                             }
                         }
                     }
