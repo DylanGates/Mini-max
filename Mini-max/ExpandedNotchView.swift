@@ -234,20 +234,31 @@ private struct NotchBatteryView: View {
 private struct MiniMaxHomePanel: View {
     let greeting: String
 
+    private let projects  = ProjectStore.shared
+    private let tasks     = TaskStore.shared
+    private let pomodoro  = PomodoroManager.shared
+    private let learning  = LearningStore.shared
+
+    private var activeLabel: String {
+        if let p = projects.active {
+            let s = p.sessionsToday
+            return "\(p.name)  ·  \(s) session\(s == 1 ? "" : "s") today"
+        }
+        return "no active project"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Greeting
             Text(greeting)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(.white)
                 .lineLimit(1)
 
-            // Project status
             HStack(spacing: 5) {
                 Image(systemName: "smallcircle.filled.circle")
                     .font(.system(size: 10))
                     .foregroundStyle(Color(red: 66/255, green: 109/255, blue: 157/255))
-                Text("mini-max  ·  4 sessions today")
+                Text(activeLabel)
                     .font(.system(size: 10))
                     .foregroundStyle(Color(white: 0.48))
             }
@@ -267,8 +278,58 @@ private struct MiniMaxHomePanel: View {
                 .foregroundStyle(Color(white: 0.22))
 
             Spacer(minLength: 0)
+
+            // Today summary
+            todaySummary
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    private var todaySummary: some View {
+        HStack(spacing: 10) {
+            SummaryChip(
+                icon: "checkmark.circle",
+                value: "\(tasks.completed.count)",
+                label: "done",
+                color: Color(red: 0.27, green: 0.75, blue: 0.43)
+            )
+            SummaryChip(
+                icon: "timer",
+                value: "\(pomodoro.completedSessions)",
+                label: "sessions",
+                color: Color(red: 0.48, green: 0.70, blue: 0.91)
+            )
+            SummaryChip(
+                icon: "book",
+                value: "\(learning.todayTopics.count)",
+                label: "topics",
+                color: Color(red: 0.75, green: 0.55, blue: 0.90)
+            )
+        }
+    }
+}
+
+private struct SummaryChip: View {
+    let icon: String
+    let value: String
+    let label: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 8))
+                .foregroundStyle(color.opacity(0.7))
+            Text(value)
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.white)
+            Text(label)
+                .font(.system(size: 8))
+                .foregroundStyle(Color(white: 0.32))
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(RoundedRectangle(cornerRadius: 4).fill(Color(white: 0.07)))
     }
 }
 
