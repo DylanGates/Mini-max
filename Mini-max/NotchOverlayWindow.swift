@@ -46,10 +46,10 @@ final class NotchOverlayWindow: NSPanel {
         addTrackingToContentView()
     }
 
-    /// Expand the overlay to fill the notch area with content (640 × 175).
+    /// Expand the overlay to fill the notch area with content (640 × 230).
     func expand(on screen: NSScreen) {
         let expandedWidth: CGFloat = 640
-        let expandedHeight: CGFloat = 175
+        let expandedHeight: CGFloat = 230
         let x = screen.frame.midX - expandedWidth / 2
         let y = screen.frame.maxY - expandedHeight
         let expandedFrame = CGRect(x: x, y: y, width: expandedWidth, height: expandedHeight)

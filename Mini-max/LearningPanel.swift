@@ -345,7 +345,8 @@ private struct TopicRow: View {
                 }
             }
         }
-        .padding(.vertical, 7)
+        .padding(.vertical, 6)
+        .padding(.leading, 4)
         .padding(.trailing, 8)
         .opacity(isScheduledToday ? 1 : 0.55)
     }

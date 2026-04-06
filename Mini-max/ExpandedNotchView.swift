@@ -20,7 +20,7 @@ struct NotchShellView: View {
 
     var body: some View {
         ZStack {
-            NotchShape(bottomCornerRadius: state.isExpanded ? 24 : 10)
+            NotchShape(bottomCornerRadius: state.isExpanded ? 28 : 10)
                 .fill(Color(red: 11/255, green: 11/255, blue: 11/255))
 
             // Pill eyes (closed state)
@@ -51,25 +51,25 @@ struct ExpandedNotchContent: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             NotchHeaderBar(activeTab: $activeTab)
 
             switch activeTab {
             case .home:
-                HStack(alignment: .top, spacing: 12) {
+                HStack(alignment: .top, spacing: 14) {
                     MiniMaxHomePanel(greeting: greeting)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     CalendarPanel()
-                        .frame(width: 220)
+                        .frame(width: 210)
                 }
                 .frame(maxHeight: .infinity)
 
             case .projects:
-                HStack(alignment: .top, spacing: 12) {
+                HStack(alignment: .top, spacing: 14) {
                     ProjectsPanel()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     CalendarPanel()
-                        .frame(width: 220)
+                        .frame(width: 210)
                 }
                 .frame(maxHeight: .infinity)
 
@@ -90,8 +90,9 @@ struct ExpandedNotchContent: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .padding(.horizontal, 32)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 24)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
         .animation(.easeInOut(duration: 0.18), value: activeTab)
     }
 }
@@ -248,38 +249,44 @@ private struct MiniMaxHomePanel: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(greeting)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
+        VStack(alignment: .leading, spacing: 0) {
+            // Top: greeting + active project
+            VStack(alignment: .leading, spacing: 3) {
+                Text(greeting)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
 
-            HStack(spacing: 5) {
-                Image(systemName: "smallcircle.filled.circle")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color(red: 66/255, green: 109/255, blue: 157/255))
-                Text(activeLabel)
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color(white: 0.48))
+                HStack(spacing: 4) {
+                    Image(systemName: "smallcircle.filled.circle")
+                        .font(.system(size: 9))
+                        .foregroundStyle(Color(red: 66/255, green: 109/255, blue: 157/255))
+                    Text(activeLabel)
+                        .font(.system(size: 9))
+                        .foregroundStyle(Color(white: 0.42))
+                        .lineLimit(1)
+                }
             }
 
             Spacer(minLength: 0)
 
-            // Eyes
-            MiniMaxEyesView()
-                .frame(maxWidth: .infinity)
-                .frame(height: 36)
+            // Center: eyes + state
+            VStack(alignment: .center, spacing: 4) {
+                MiniMaxEyesView()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 32)
 
-            // Thinking dots
-            ThinkingBubbleView()
-
-            Text("thinking...")
-                .font(.system(size: 8, weight: .light))
-                .foregroundStyle(Color(white: 0.22))
+                HStack(spacing: 5) {
+                    ThinkingBubbleView()
+                    Text("thinking...")
+                        .font(.system(size: 8, weight: .light))
+                        .foregroundStyle(Color(white: 0.2))
+                }
+            }
 
             Spacer(minLength: 0)
 
-            // Today summary
+            // Bottom: today summary
             todaySummary
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -665,29 +672,102 @@ private struct StreakPanel: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        Group {
             if !contributions.hasAnyToken || showTokenSetup {
-                tokenSetupPanel
-                    .padding(.bottom, 8)
-            }
-
-            HStack(alignment: .top, spacing: 18) {
-                statsColumn
-                heatmapSection
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .overlay(alignment: .topTrailing) {
-                if contributions.isFetching {
-                    ProgressView()
-                        .scaleEffect(0.5)
-                        .frame(width: 16, height: 16)
+                // Full-area setup — never competes with heatmap
+                setupView
+            } else {
+                // Data view
+                HStack(alignment: .top, spacing: 16) {
+                    statsColumn
+                    heatmapSection
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .overlay(alignment: .topTrailing) {
+                    if contributions.isFetching {
+                        ProgressView()
+                            .scaleEffect(0.5)
+                            .frame(width: 14, height: 14)
+                    }
                 }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task {
             if contributions.hasAnyToken {
                 await contributions.fetchAll()
+            }
+        }
+    }
+
+    // MARK: - Setup View (full area, no heatmap behind it)
+
+    private var setupView: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Connect GitHub")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                    Text("PAT with read:user scope — includes private contributions")
+                        .font(.system(size: 9))
+                        .foregroundStyle(Color(white: 0.35))
+                }
+                Spacer()
+                if contributions.hasAnyToken {
+                    Button { showTokenSetup = false } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Color(white: 0.3))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.bottom, 12)
+
+            VStack(spacing: 6) {
+                ForEach(accounts) { account in
+                    HStack(spacing: 8) {
+                        Circle().fill(account.dotColor).frame(width: 6, height: 6)
+                        Text(account.username)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(Color(white: 0.55))
+                            .frame(width: 80, alignment: .leading)
+                        SecureField("ghp_…", text: Binding(
+                            get: { tokenDrafts[account.username] ?? contributions.token(for: account.username) },
+                            set: { tokenDrafts[account.username] = $0 }
+                        ))
+                        .font(.system(size: 10, design: .monospaced))
+                        .textFieldStyle(.plain)
+                        .foregroundStyle(.white)
+                        .onSubmit { saveTokens() }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color(white: 0.06)))
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            HStack {
+                if let err = contributions.fetchError {
+                    Text(err)
+                        .font(.system(size: 8))
+                        .foregroundStyle(Color(red: 0.88, green: 0.32, blue: 0.32))
+                        .lineLimit(1)
+                }
+                Spacer()
+                Button(action: saveTokens) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 9, weight: .semibold))
+                        Text("Save & Fetch")
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .foregroundStyle(Color(red: 0.27, green: 0.75, blue: 0.43))
+                }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -757,55 +837,55 @@ private struct StreakPanel: View {
     // MARK: Stats
 
     private var statsColumn: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text("\(currentStreak)")
-                    .font(.system(size: 34, weight: .bold))
+                    .font(.system(size: 30, weight: .bold, design: .monospaced))
                     .foregroundStyle(.white)
                 Text("day streak")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color(white: 0.4))
+                    .font(.system(size: 9))
+                    .foregroundStyle(Color(white: 0.38))
             }
 
             Rectangle()
-                .fill(Color(white: 0.15))
+                .fill(Color(white: 0.12))
                 .frame(height: 0.5)
+                .padding(.vertical, 8)
 
             StatLine(label: "longest", value: "\(longestStreak)d")
 
             Spacer(minLength: 0)
 
-            // Token / refresh controls
-            Button { showTokenSetup.toggle() } label: {
-                Image(systemName: "key")
-                    .font(.system(size: 9))
-                    .foregroundStyle(contributions.hasAnyToken ? Color(white: 0.3) : Color(red: 0.88, green: 0.55, blue: 0.2))
-            }
-            .buttonStyle(.plain)
-
-            // Account legend
-            VStack(alignment: .leading, spacing: 4) {
+            // Account legend + key button
+            VStack(alignment: .leading, spacing: 3) {
                 ForEach(accounts) { acc in
                     HStack(spacing: 4) {
-                        Circle()
-                            .fill(acc.dotColor)
-                            .frame(width: 6, height: 6)
+                        Circle().fill(acc.dotColor).frame(width: 5, height: 5)
                         Text(acc.username)
                             .font(.system(size: 8))
-                            .foregroundStyle(Color(white: 0.5))
+                            .foregroundStyle(Color(white: 0.45))
                             .lineLimit(1)
                     }
                 }
             }
+            .padding(.bottom, 6)
+
+            Button { showTokenSetup = true } label: {
+                Image(systemName: "key")
+                    .font(.system(size: 9))
+                    .foregroundStyle(Color(white: 0.28))
+            }
+            .buttonStyle(.plain)
 
             if let err = contributions.fetchError {
                 Text(err)
                     .font(.system(size: 7))
                     .foregroundStyle(Color(red: 0.88, green: 0.32, blue: 0.32))
                     .lineLimit(2)
+                    .padding(.top, 4)
             }
         }
-        .frame(width: 76)
+        .frame(width: 72)
     }
 
     // MARK: Heatmap
