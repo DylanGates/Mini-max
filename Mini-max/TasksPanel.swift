@@ -40,44 +40,38 @@ struct TasksPanel: View {
             if store.tasks.isEmpty && !isAddingTask {
                 emptyState
             } else {
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        // Pending — drag-to-reorder via List
-                        List {
-                            ForEach(store.pending) { task in
+                List {
+                    ForEach(store.pending) { task in
+                        TaskRow(task: task)
+                            .listRowBackground(Color.clear)
+                            .listRowSeparatorTint(Color(white: 0.08))
+                            .listRowInsets(EdgeInsets())
+                    }
+                    .onMove { store.movePending(fromOffsets: $0, toOffset: $1) }
+
+                    if !store.completed.isEmpty {
+                        Section {
+                            ForEach(store.completed) { task in
                                 TaskRow(task: task)
+                                    .opacity(0.45)
                                     .listRowBackground(Color.clear)
-                                    .listRowSeparatorTint(Color(white: 0.1))
+                                    .listRowSeparatorTint(Color(white: 0.06))
                                     .listRowInsets(EdgeInsets())
                             }
-                            .onMove { store.movePending(fromOffsets: $0, toOffset: $1) }
+                        } header: {
+                            Text("done")
+                                .font(.system(size: 8, weight: .medium))
+                                .foregroundStyle(Color(white: 0.22))
+                                .textCase(nil)
+                                .padding(.leading, 10)
+                                .padding(.vertical, 4)
                         }
-                        .listStyle(.plain)
-                        .scrollContentBackground(.hidden)
-                        .scrollDisabled(true)
-                        .frame(height: CGFloat(store.pending.count) * 38)
-
-                        // Completed — recede with opacity + larger gap above
-                        if !store.completed.isEmpty {
-                            HStack {
-                                Text("done")
-                                    .font(.system(size: 8, weight: .medium))
-                                    .foregroundStyle(Color(white: 0.22))
-                                    .padding(.top, 10)
-                                    .padding(.bottom, 4)
-                                Spacer()
-                            }
-                            .padding(.leading, 10)
-
-                            VStack(spacing: 0) {
-                                ForEach(store.completed) { task in
-                                    TaskRow(task: task)
-                                        .opacity(0.45)
-                                }
-                            }
-                        }
+                        .listSectionSeparator(.hidden)
                     }
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .environment(\.editMode, .constant(.active))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
