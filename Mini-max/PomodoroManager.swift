@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UserNotifications
 
 enum PomodoroPhase {
     case idle
@@ -127,16 +128,39 @@ final class PomodoroManager {
         case .focus:
             completedSessions += 1
             UserDefaults.standard.set(completedSessions, forKey: sessionsKey)
+            // Credit the active project with one completed session
+            if let active = ProjectStore.shared.active {
+                ProjectStore.shared.incrementSession(active)
+            }
+            sendPhaseNotification(title: "Focus complete", body: nextBreakLabel())
             let isLong = completedSessions % sessionsBeforeLong == 0
             phase = isLong
                 ? .longBreak(remaining: longBreakDuration)
                 : .shortBreak(remaining: shortBreakDuration)
             scheduleTick()
         case .shortBreak, .longBreak:
+            sendPhaseNotification(title: "Break over", body: "Back to focus.")
             phase = .focus(remaining: focusDuration)
             scheduleTick()
         case .idle:
             break
+        }
+    }
+
+    private func nextBreakLabel() -> String {
+        completedSessions % sessionsBeforeLong == 0 ? "Time for a long break." : "Time for a short break."
+    }
+
+    private func sendPhaseNotification(title: String, body: String) {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = body
+            content.sound = .default
+            let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+            center.add(req)
         }
     }
 }
