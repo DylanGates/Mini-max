@@ -18,6 +18,13 @@ enum NotchTab { case home, projects, streak, learn, tasks, focus }
 struct NotchShellView: View {
     var state: NotchDisplayState
 
+    // Separate open vs close spring — BoringNotch pattern
+    private var currentAnimation: Animation {
+        state.isExpanded
+            ? .spring(response: 0.42, dampingFraction: 0.8)
+            : .spring(response: 0.45, dampingFraction: 1.0)
+    }
+
     var body: some View {
         ZStack {
             NotchShape(
@@ -25,6 +32,10 @@ struct NotchShellView: View {
                 outerGutterRadius:  state.isExpanded ? 0 : 10
             )
             .fill(Color(red: 11/255, green: 11/255, blue: 11/255))
+            .shadow(
+                color: state.isExpanded ? .black.opacity(0.6) : .clear,
+                radius: 6
+            )
 
             // Pill eyes (collapsed state)
             HStack(spacing: 10) {
@@ -37,8 +48,13 @@ struct NotchShellView: View {
             // Expanded content
             ExpandedNotchContent()
                 .opacity(state.isExpanded ? 1 : 0)
+                .scaleEffect(
+                    x: state.isExpanded ? 1 : 0.94,
+                    y: state.isExpanded ? 1 : 0.94,
+                    anchor: .top
+                )
         }
-        .animation(.spring(response: 0.32, dampingFraction: 0.78), value: state.isExpanded)
+        .animation(currentAnimation, value: state.isExpanded)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
@@ -54,49 +70,56 @@ struct ExpandedNotchContent: View {
     }
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 4) {
             NotchHeaderBar(activeTab: $activeTab)
 
-            switch activeTab {
-            case .home:
-                HStack(alignment: .top, spacing: 14) {
-                    MiniMaxHomePanel(greeting: greeting)
+            Group {
+                switch activeTab {
+                case .home:
+                    HStack(alignment: .top, spacing: 12) {
+                        MiniMaxHomePanel(greeting: greeting)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        CalendarPanel()
+                            .frame(width: 200)
+                    }
+                    .frame(maxHeight: .infinity)
+
+                case .projects:
+                    HStack(alignment: .top, spacing: 12) {
+                        ProjectsPanel()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        CalendarPanel()
+                            .frame(width: 200)
+                    }
+                    .frame(maxHeight: .infinity)
+
+                case .streak:
+                    StreakPanel()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    CalendarPanel()
-                        .frame(width: 210)
-                }
-                .frame(maxHeight: .infinity)
 
-            case .projects:
-                HStack(alignment: .top, spacing: 14) {
-                    ProjectsPanel()
+                case .learn:
+                    LearningPanel()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    CalendarPanel()
-                        .frame(width: 210)
+
+                case .tasks:
+                    TasksPanel()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                case .focus:
+                    FocusPanel()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .frame(maxHeight: .infinity)
-
-            case .streak:
-                StreakPanel()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            case .learn:
-                LearningPanel()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            case .tasks:
-                TasksPanel()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            case .focus:
-                FocusPanel()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .transition(
+                .scale(scale: 0.93, anchor: .top)
+                .combined(with: .opacity)
+            )
+            .id(activeTab)
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 8)
-        .padding(.bottom, 12)
-        .animation(.easeInOut(duration: 0.18), value: activeTab)
+        .padding(.horizontal, 16)
+        .padding(.top, 6)
+        .padding(.bottom, 10)
+        .animation(.smooth(duration: 0.22), value: activeTab)
     }
 }
 
@@ -108,23 +131,20 @@ private struct NotchHeaderBar: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            // Tab pill
-            HStack(spacing: 0) {
-                TabPillButton(symbol: "house.fill",    isSelected: activeTab == .home)     { activeTab = .home }
-                TabPillButton(symbol: "folder.fill",  isSelected: activeTab == .projects) { activeTab = .projects }
-                TabPillButton(symbol: "flame.fill",   isSelected: activeTab == .streak)   { activeTab = .streak }
-                TabPillButton(symbol: "book.fill",    isSelected: activeTab == .learn)    { activeTab = .learn }
-                TabPillButton(symbol: "checklist",    isSelected: activeTab == .tasks)    { activeTab = .tasks }
-                TabPillButton(symbol: "timer",        isSelected: activeTab == .focus)    { activeTab = .focus }
+            // Tab row — no outer capsule, each tab styles itself (Notchy pattern)
+            HStack(spacing: 2) {
+                TabPillButton(symbol: "house.fill",   label: "Home",     isSelected: activeTab == .home)     { activeTab = .home }
+                TabPillButton(symbol: "folder.fill",  label: "Projects", isSelected: activeTab == .projects) { activeTab = .projects }
+                TabPillButton(symbol: "flame.fill",   label: "Streak",   isSelected: activeTab == .streak)   { activeTab = .streak }
+                TabPillButton(symbol: "book.fill",    label: "Learn",    isSelected: activeTab == .learn)    { activeTab = .learn }
+                TabPillButton(symbol: "checklist",    label: "Tasks",    isSelected: activeTab == .tasks)    { activeTab = .tasks }
+                TabPillButton(symbol: "timer",        label: "Focus",    isSelected: activeTab == .focus)    { activeTab = .focus }
             }
-            .padding(.horizontal, 5)
-            .padding(.vertical, 3)
-            .background(Capsule().fill(Color(white: 0.11)))
 
             Spacer()
 
             // Right: settings + battery
-            HStack(spacing: 6) {
+            HStack(spacing: 4) {
                 NotchSettingsButton()
                 NotchBatteryView(battery: battery)
             }
@@ -132,22 +152,43 @@ private struct NotchHeaderBar: View {
     }
 }
 
+private let tabAccent = Color(red: 0.48, green: 0.70, blue: 0.91)
+
 private struct TabPillButton: View {
     let symbol: String
+    let label: String
     let isSelected: Bool
     let action: () -> Void
+    @State private var isHovering = false
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 11))
-                .foregroundStyle(isSelected ? .white : Color(white: 0.38))
-                .frame(width: 26, height: 22)
-                .background(
-                    Capsule().fill(isSelected ? Color(white: 0.19) : .clear)
-                )
+            HStack(spacing: 4) {
+                Image(systemName: symbol)
+                    .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
+                if isSelected {
+                    Text(label)
+                        .font(.system(size: 10, weight: .semibold))
+                        .lineLimit(1)
+                        .transition(.scale(scale: 0.8).combined(with: .opacity))
+                }
+            }
+            .foregroundStyle(isSelected ? .white : Color(white: isHovering ? 0.6 : 0.38))
+            .padding(.horizontal, isSelected ? 9 : 7)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isSelected ? tabAccent.opacity(0.15) : isHovering ? Color(white: 0.08) : .clear)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(isSelected ? tabAccent.opacity(0.35) : .clear, lineWidth: 0.5)
+                    )
+            )
         }
         .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+        .animation(.easeInOut(duration: 0.15), value: isSelected)
+        .animation(.easeInOut(duration: 0.1), value: isHovering)
     }
 }
 
