@@ -27,6 +27,23 @@ struct NotchShape: Shape {
         let r = bottomCornerRadius
         let g = outerGutterRadius
 
+        // When g≈0 the anti-corner segments collapse and self-intersect,
+        // punching transparent holes via even-odd winding. Use a plain
+        // flat-top / rounded-bottom rect instead.
+        if g < 0.5 {
+            var p = Path()
+            p.move(to:    CGPoint(x: rect.minX,     y: rect.minY))
+            p.addLine(to: CGPoint(x: rect.maxX,     y: rect.minY))
+            p.addLine(to: CGPoint(x: rect.maxX,     y: rect.maxY - r))
+            p.addQuadCurve(to:      CGPoint(x: rect.maxX - r, y: rect.maxY),
+                           control: CGPoint(x: rect.maxX,     y: rect.maxY))
+            p.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
+            p.addQuadCurve(to:      CGPoint(x: rect.minX,     y: rect.maxY - r),
+                           control: CGPoint(x: rect.minX,     y: rect.maxY))
+            p.closeSubpath()
+            return p
+        }
+
         let pMinX = rect.minX + g  // pill left wall
         let pMaxX = rect.maxX - g  // pill right wall
 
