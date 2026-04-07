@@ -9,9 +9,9 @@ enum StatusBarLayout: String, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .primary:      return "Primary  ● 18:42  ● 12 …"
-        case .ultraCompact: return "Ultra Compact  ● ● ● ● ●"
-        case .badge:        return "Badge  ● 12d streak  ● 3 events …"
+        case .primary:      return "Primary — icon + value"
+        case .ultraCompact: return "Ultra Compact — icons only"
+        case .badge:        return "Badge — icon + labeled value"
         }
     }
 }
@@ -84,10 +84,10 @@ final class StatusBarController {
     }
 
     private struct Indicator {
+        let symbol: String  // SF Symbol name
         let color: NSColor
-        let dot: String     // "●" active, "○" encouragement
-        let label: String   // text shown next to dot (empty in ultraCompact)
-        let tooltip: String // shown in ultra-compact hover
+        let label: String   // text shown next to icon (empty in ultraCompact)
+        let tooltip: String
     }
 
     private func currentIndicators() -> [Indicator] {
@@ -96,28 +96,27 @@ final class StatusBarController {
         // Pomodoro — only shown when a session is active
         if !PomodoroManager.shared.phase.isIdle {
             indicators.append(Indicator(
+                symbol: "hourglass",
                 color: IndicatorColor.pomodoro,
-                dot: "●",
                 label: layout == .ultraCompact ? "" : pomodoroLabel(),
                 tooltip: "Pomodoro: \(pomodoroLabel())"
             ))
         }
 
-        // GitHub streak — always shown; hollow dot + encouragement when no streak
+        // GitHub streak — always shown; dimmed outline flame + nudge when no streak
         let streak = githubStreak()
         if streak > 0 {
             indicators.append(Indicator(
+                symbol: "flame.fill",
                 color: IndicatorColor.streak,
-                dot: "●",
                 label: layout == .ultraCompact ? "" : streakLabel(),
                 tooltip: "GitHub streak: \(streak)d"
             ))
         } else {
-            // No streak — nudge with a hollow dot in a dimmed color
             indicators.append(Indicator(
-                color: IndicatorColor.streak.withAlphaComponent(0.45),
-                dot: "○",
-                label: layout == .ultraCompact ? "" : "+1d?",
+                symbol: "flame",          // outline = no active streak
+                color: IndicatorColor.streak.withAlphaComponent(0.4),
+                label: layout == .ultraCompact ? "" : "push?",
                 tooltip: "No streak — push a commit today to start one"
             ))
         }
@@ -127,17 +126,15 @@ final class StatusBarController {
 
     private func buildAttributedTitle(_ indicators: [Indicator]) -> NSAttributedString {
         let result = NSMutableAttributedString()
-        let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
-        let gapStr = layout == .ultraCompact ? "  " : "   "
+        let font   = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        let iconPt: CGFloat = 11
+        let gap    = layout == .ultraCompact ? "  " : "  "
 
         for (i, indicator) in indicators.enumerated() {
-            // Dot character ("●" active, "○" encouragement)
-            result.append(NSAttributedString(string: indicator.dot, attributes: [
-                .foregroundColor: indicator.color,
-                .font: font
-            ]))
+            // SF Symbol as NSTextAttachment
+            result.append(makeSymbolAttachment(indicator.symbol, color: indicator.color, size: iconPt))
 
-            // Label (empty string in ultraCompact, so nothing added)
+            // Label
             if !indicator.label.isEmpty {
                 result.append(NSAttributedString(string: " \(indicator.label)", attributes: [
                     .foregroundColor: NSColor.labelColor,
@@ -145,9 +142,8 @@ final class StatusBarController {
                 ]))
             }
 
-            // Gap between segments
             if i < indicators.count - 1 {
-                result.append(NSAttributedString(string: gapStr, attributes: [
+                result.append(NSAttributedString(string: gap, attributes: [
                     .font: font,
                     .foregroundColor: NSColor.clear
                 ]))
@@ -155,6 +151,25 @@ final class StatusBarController {
         }
 
         return result
+    }
+
+    /// Renders an SF Symbol at `size` points, tinted with `color`, as an inline NSTextAttachment.
+    private func makeSymbolAttachment(_ name: String, color: NSColor, size: CGFloat) -> NSAttributedString {
+        let config = NSImage.SymbolConfiguration(pointSize: size, weight: .regular)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
+        guard let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+                .withSymbolConfiguration(config) else {
+            // Fallback to a colored dot if symbol unavailable
+            return NSAttributedString(string: "●", attributes: [
+                .foregroundColor: color,
+                .font: NSFont.systemFont(ofSize: size)
+            ])
+        }
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        // Nudge baseline down by ~2pt so icon sits on the text baseline
+        attachment.bounds = CGRect(x: 0, y: -2, width: size, height: size)
+        return NSAttributedString(attachment: attachment)
     }
 
     // MARK: - Data helpers
