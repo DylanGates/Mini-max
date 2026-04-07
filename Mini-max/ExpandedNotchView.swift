@@ -127,7 +127,46 @@ struct ExpandedNotchContent: View {
 
 private struct NotchHeaderBar: View {
     @Binding var activeTab: NotchTab
-    private let battery = BatteryMonitor.shared
+    private let battery  = BatteryMonitor.shared
+    private let pomodoro = PomodoroManager.shared
+    private let github   = GitHubContributionStore.shared
+    private let calendar = CalendarManager.shared
+    private let tasks    = TaskStore.shared
+
+    // GitHub current streak — count consecutive days ending today with ≥1 commit
+    private var githubStreak: Int {
+        guard !github.contributionsByUser.isEmpty else { return 0 }
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = TimeZone(identifier: "UTC")
+        var streak = 0
+        var date = Date()
+        let cal = Calendar(identifier: .gregorian)
+        while true {
+            let key = df.string(from: date)
+            let hasCommit = github.contributionsByUser.values.contains { $0[key]?.count ?? 0 > 0 }
+            if !hasCommit { break }
+            streak += 1
+            guard let prev = cal.date(byAdding: .day, value: -1, to: date) else { break }
+            date = prev
+        }
+        return streak
+    }
+
+    // Pomodoro countdown label e.g. "18:35" or "–"
+    private var pomodoroLabel: String {
+        guard !pomodoro.phase.isIdle else { return "–" }
+        let r = pomodoro.phase.remaining
+        let m = Int(r) / 60
+        let s = Int(r) % 60
+        return String(format: "%d:%02d", m, s)
+    }
+
+    // Today's event count
+    private var eventCount: Int { calendar.events.count }
+
+    // Pending task count
+    private var pendingTasks: Int { tasks.pending.count }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -143,12 +182,45 @@ private struct NotchHeaderBar: View {
 
             Spacer()
 
-            // Right: settings + battery
-            HStack(spacing: 4) {
+            // Right: status pills + settings + battery (gap=6 per design)
+            HStack(spacing: 6) {
+                StatusBadgePill(symbol: "hourglass",    label: pomodoroLabel,      iconSize: 10, borderColor: Color(red: 0.129, green: 0.588, blue: 0.953))
+                StatusBadgePill(symbol: "flame.fill",   label: "\(githubStreak)",  iconSize: 8,  borderColor: Color(red: 0.800, green: 0.216, blue: 0.216))
+                StatusBadgePill(symbol: "calendar",     label: "\(eventCount)",    iconSize: 8,  borderColor: Color(red: 0.118, green: 0.843, blue: 0.376))
+                StatusBadgePill(symbol: "checklist",    label: "\(pendingTasks)",  iconSize: 8,  borderColor: Color(red: 0.843, green: 0.518, blue: 0.118))
                 NotchSettingsButton()
                 NotchBatteryView(battery: battery)
             }
         }
+    }
+}
+
+// MARK: - Status Badge Pill
+
+private struct StatusBadgePill: View {
+    let symbol: String
+    let label: String
+    var iconSize: CGFloat = 8
+    let borderColor: Color
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Image(systemName: symbol)
+                .font(.system(size: iconSize, weight: .regular))
+                .foregroundStyle(borderColor)
+                .frame(width: iconSize, height: iconSize)
+            Text(label)
+                .font(.system(size: 8, weight: .regular))
+                .fontDesign(.default)
+                .foregroundStyle(.white)
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .stroke(borderColor, lineWidth: 1)
+        )
     }
 }
 
