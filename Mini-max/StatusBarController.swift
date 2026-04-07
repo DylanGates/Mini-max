@@ -85,38 +85,44 @@ final class StatusBarController {
 
     private struct Indicator {
         let color: NSColor
+        let dot: String     // "●" active, "○" encouragement
         let label: String   // text shown next to dot (empty in ultraCompact)
         let tooltip: String // shown in ultra-compact hover
     }
 
     private func currentIndicators() -> [Indicator] {
-        [
-            Indicator(
+        var indicators: [Indicator] = []
+
+        // Pomodoro — only shown when a session is active
+        if !PomodoroManager.shared.phase.isIdle {
+            indicators.append(Indicator(
                 color: IndicatorColor.pomodoro,
+                dot: "●",
                 label: layout == .ultraCompact ? "" : pomodoroLabel(),
                 tooltip: "Pomodoro: \(pomodoroLabel())"
-            ),
-            Indicator(
+            ))
+        }
+
+        // GitHub streak — always shown; hollow dot + encouragement when no streak
+        let streak = githubStreak()
+        if streak > 0 {
+            indicators.append(Indicator(
                 color: IndicatorColor.streak,
+                dot: "●",
                 label: layout == .ultraCompact ? "" : streakLabel(),
-                tooltip: "GitHub streak: \(githubStreak())d"
-            ),
-            Indicator(
-                color: IndicatorColor.learning,
-                label: layout == .ultraCompact ? "" : learningLabel(),
-                tooltip: "Learning today: \(LearningStore.shared.todayTopics.count) topics"
-            ),
-            Indicator(
-                color: IndicatorColor.events,
-                label: layout == .ultraCompact ? "" : eventsLabel(),
-                tooltip: "Events today: \(CalendarManager.shared.events.count)"
-            ),
-            Indicator(
-                color: IndicatorColor.tasks,
-                label: layout == .ultraCompact ? "" : tasksLabel(),
-                tooltip: "Tasks pending: \(TaskStore.shared.pending.count)"
-            ),
-        ]
+                tooltip: "GitHub streak: \(streak)d"
+            ))
+        } else {
+            // No streak — nudge with a hollow dot in a dimmed color
+            indicators.append(Indicator(
+                color: IndicatorColor.streak.withAlphaComponent(0.45),
+                dot: "○",
+                label: layout == .ultraCompact ? "" : "+1d?",
+                tooltip: "No streak — push a commit today to start one"
+            ))
+        }
+
+        return indicators
     }
 
     private func buildAttributedTitle(_ indicators: [Indicator]) -> NSAttributedString {
@@ -125,8 +131,8 @@ final class StatusBarController {
         let gapStr = layout == .ultraCompact ? "  " : "   "
 
         for (i, indicator) in indicators.enumerated() {
-            // Colored dot
-            result.append(NSAttributedString(string: "●", attributes: [
+            // Dot character ("●" active, "○" encouragement)
+            result.append(NSAttributedString(string: indicator.dot, attributes: [
                 .foregroundColor: indicator.color,
                 .font: font
             ]))
@@ -187,21 +193,6 @@ final class StatusBarController {
         return layout == .badge ? "\(n)d" : "\(n)"
     }
 
-    private func learningLabel() -> String {
-        // LearningTopic has no completion timestamp yet — shows today's scheduled count
-        let n = LearningStore.shared.todayTopics.count
-        return layout == .badge ? "\(n) topics" : "\(n)"
-    }
-
-    private func eventsLabel() -> String {
-        let n = CalendarManager.shared.events.count
-        return layout == .badge ? "\(n) events" : "\(n)"
-    }
-
-    private func tasksLabel() -> String {
-        let n = TaskStore.shared.pending.count
-        return layout == .badge ? "\(n) tasks" : "\(n)"
-    }
 
     // MARK: - Button & Menu
 
