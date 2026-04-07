@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct FocusPanel: View {
-    private let pomodoro = PomodoroManager.shared
+    private let pomodoro  = PomodoroManager.shared
+    private let taskStore = TaskStore.shared
     @State private var showSettings = false
 
     private var timeString: String {
@@ -123,22 +124,26 @@ struct FocusPanel: View {
 
                 Spacer()
 
-                // Settings toggle — only show when idle (can't reconfigure mid-session)
                 if pomodoro.phase.isIdle {
                     Button { showSettings.toggle() } label: {
                         Image(systemName: showSettings ? "xmark" : "gearshape")
                             .font(.system(size: 10))
-                            .foregroundStyle(showSettings ? Color(red: 0.48, green: 0.70, blue: 0.91) : Color(white: 0.3))
+                            .foregroundStyle(showSettings ? accent : Color(white: 0.3))
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.bottom, 10)
+            .padding(.bottom, 8)
 
             Text(nextPhaseHint)
                 .font(.system(size: 9, weight: .medium))
                 .foregroundStyle(accent.opacity(0.6))
-                .padding(.bottom, 12)
+                .padding(.bottom, 10)
+
+            // ── Linked task ──────────────────────────────────
+            linkedTaskSection
+                .padding(.bottom, 10)
+            // ─────────────────────────────────────────────────
 
             Spacer(minLength: 0)
 
@@ -155,6 +160,116 @@ struct FocusPanel: View {
             }
         }
         .frame(maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    // MARK: - Linked Task Section
+
+    @ViewBuilder
+    private var linkedTaskSection: some View {
+        let pending = taskStore.pending
+
+        if let task = pomodoro.currentTask {
+            // Task is linked — show it with unlink + done buttons
+            HStack(spacing: 6) {
+                // Priority color bar
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(priorityColor(task.priority))
+                    .frame(width: 2, height: 28)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Working on")
+                        .font(.system(size: 8))
+                        .foregroundStyle(Color(white: 0.32))
+                    Text(task.title)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 4)
+
+                VStack(spacing: 4) {
+                    // Mark done
+                    Button {
+                        taskStore.toggle(task)
+                        pomodoro.currentTaskId = nil
+                    } label: {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color(red: 0.27, green: 0.75, blue: 0.43))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Mark done")
+
+                    // Unlink
+                    Button { pomodoro.currentTaskId = nil } label: {
+                        Image(systemName: "xmark.circle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color(white: 0.28))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Unlink task")
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: 6).fill(Color(white: 0.07)))
+
+        } else if pomodoro.phase.isIdle && !pending.isEmpty {
+            // Idle + no task linked — show picker
+            Menu {
+                ForEach(pending) { task in
+                    Button {
+                        pomodoro.currentTaskId = task.id
+                    } label: {
+                        Label(task.title, systemImage: priorityIcon(task.priority))
+                    }
+                }
+                Divider()
+                Button("No task", role: .destructive) { pomodoro.currentTaskId = nil }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "link")
+                        .font(.system(size: 9))
+                        .foregroundStyle(Color(white: 0.30))
+                    Text("Link a task…")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color(white: 0.30))
+                    Spacer()
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 7))
+                        .foregroundStyle(Color(white: 0.22))
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color(white: 0.07)))
+            }
+            .buttonStyle(.plain)
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+
+        } else if !pomodoro.phase.isIdle {
+            // Active session, no task — subtle prompt
+            Text("no task linked")
+                .font(.system(size: 9))
+                .foregroundStyle(Color(white: 0.20))
+        }
+    }
+
+    private func priorityColor(_ priority: TaskPriority) -> Color {
+        switch priority {
+        case .high:   return Color(red: 0.91, green: 0.32, blue: 0.27)
+        case .medium: return Color(red: 1.0,  green: 0.62, blue: 0.04)
+        case .low:    return Color(white: 0.28)
+        }
+    }
+
+    private func priorityIcon(_ priority: TaskPriority) -> String {
+        switch priority {
+        case .high:   return "exclamationmark.circle.fill"
+        case .medium: return "minus.circle.fill"
+        case .low:    return "circle"
+        }
     }
 }
 

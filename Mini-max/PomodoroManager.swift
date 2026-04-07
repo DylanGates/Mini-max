@@ -57,6 +57,23 @@ final class PomodoroManager {
     var isPaused = false
     var completedSessions: Int = 0
 
+    /// ID of the task currently linked to this session. Persisted across restarts.
+    var currentTaskId: UUID? {
+        didSet {
+            if let id = currentTaskId {
+                UserDefaults.standard.set(id.uuidString, forKey: "minimax.pomodoro.currentTask")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "minimax.pomodoro.currentTask")
+            }
+        }
+    }
+
+    /// Resolved task from TaskStore (nil if unlinked or task was deleted).
+    var currentTask: DailyTask? {
+        guard let id = currentTaskId else { return nil }
+        return TaskStore.shared.tasks.first { $0.id == id }
+    }
+
     var sessionDots: [Bool] {
         (0..<sessionsBeforeLong).map { $0 < (completedSessions % sessionsBeforeLong) }
     }
@@ -71,6 +88,9 @@ final class PomodoroManager {
         longBreakMinutes   = d.object(forKey: "minimax.pomodoro.longMin")       != nil ? d.integer(forKey: "minimax.pomodoro.longMin")       : 15
         sessionsBeforeLong = d.object(forKey: "minimax.pomodoro.sessBeforeLong") != nil ? d.integer(forKey: "minimax.pomodoro.sessBeforeLong") : 4
         completedSessions  = d.integer(forKey: sessionsKey)
+        if let raw = d.string(forKey: "minimax.pomodoro.currentTask") {
+            currentTaskId = UUID(uuidString: raw)
+        }
     }
 
     // MARK: - Controls
