@@ -27,10 +27,7 @@ struct NotchShellView: View {
 
     var body: some View {
         ZStack {
-            NotchShape(
-                bottomCornerRadius: state.isExpanded ? 28 : 10,
-                outerGutterRadius:  state.isExpanded ? 0 : 10
-            )
+            NotchShape(bottomCornerRadius: state.isExpanded ? 28 : 10)
             .fill(Color(red: 11/255, green: 11/255, blue: 11/255))
             .shadow(
                 color: state.isExpanded ? .black.opacity(0.6) : .clear,
@@ -127,7 +124,46 @@ struct ExpandedNotchContent: View {
 
 private struct NotchHeaderBar: View {
     @Binding var activeTab: NotchTab
-    private let battery = BatteryMonitor.shared
+    private let battery  = BatteryMonitor.shared
+    private let pomodoro = PomodoroManager.shared
+    private let github   = GitHubContributionStore.shared
+    private let calendar = CalendarManager.shared
+    private let tasks    = TaskStore.shared
+
+    // GitHub current streak — count consecutive days ending today with ≥1 commit
+    private var githubStreak: Int {
+        guard !github.contributionsByUser.isEmpty else { return 0 }
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = TimeZone(identifier: "UTC")
+        var streak = 0
+        var date = Date()
+        let cal = Calendar(identifier: .gregorian)
+        while true {
+            let key = df.string(from: date)
+            let hasCommit = github.contributionsByUser.values.contains { $0[key]?.count ?? 0 > 0 }
+            if !hasCommit { break }
+            streak += 1
+            guard let prev = cal.date(byAdding: .day, value: -1, to: date) else { break }
+            date = prev
+        }
+        return streak
+    }
+
+    // Pomodoro countdown label e.g. "18:35" or "–"
+    private var pomodoroLabel: String {
+        guard !pomodoro.phase.isIdle else { return "–" }
+        let r = pomodoro.phase.remaining
+        let m = Int(r) / 60
+        let s = Int(r) % 60
+        return String(format: "%d:%02d", m, s)
+    }
+
+    // Today's event count
+    private var eventCount: Int { calendar.events.count }
+
+    // Pending task count
+    private var pendingTasks: Int { tasks.pending.count }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -143,12 +179,45 @@ private struct NotchHeaderBar: View {
 
             Spacer()
 
-            // Right: settings + battery
-            HStack(spacing: 4) {
+            // Right: status pills + settings + battery (gap=6 per design)
+            HStack(spacing: 6) {
+                StatusBadgePill(symbol: "hourglass",    label: pomodoroLabel,      iconSize: 10, borderColor: Color(red: 0.129, green: 0.588, blue: 0.953))
+                StatusBadgePill(symbol: "flame.fill",   label: "\(githubStreak)",  iconSize: 8,  borderColor: Color(red: 0.800, green: 0.216, blue: 0.216))
+                StatusBadgePill(symbol: "calendar",     label: "\(eventCount)",    iconSize: 8,  borderColor: Color(red: 0.118, green: 0.843, blue: 0.376))
+                StatusBadgePill(symbol: "checklist",    label: "\(pendingTasks)",  iconSize: 8,  borderColor: Color(red: 0.843, green: 0.518, blue: 0.118))
                 NotchSettingsButton()
                 NotchBatteryView(battery: battery)
             }
         }
+    }
+}
+
+// MARK: - Status Badge Pill
+
+private struct StatusBadgePill: View {
+    let symbol: String
+    let label: String
+    var iconSize: CGFloat = 8
+    let borderColor: Color
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Image(systemName: symbol)
+                .font(.system(size: iconSize, weight: .regular))
+                .foregroundStyle(borderColor)
+                .frame(width: iconSize, height: iconSize)
+            Text(label)
+                .font(.system(size: 8, weight: .regular))
+                .fontDesign(.default)
+                .foregroundStyle(.white)
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .stroke(borderColor, lineWidth: 1)
+        )
     }
 }
 
@@ -595,12 +664,72 @@ private struct ProjectsPanel: View {
     }
 }
 
+// MARK: - Git Stats
+
+struct ProjectGitStats {
+    var weeklyCommits: Int = 0
+    var lastCommitAge: String = ""   // e.g. "3h ago"
+    var branch: String = ""
+    var isGitRepo: Bool = false
+}
+
+/// Fetches git stats for a project path asynchronously.
+private func fetchGitStats(path: String) async -> ProjectGitStats {
+    guard !path.isEmpty else { return ProjectGitStats() }
+
+    func run(_ args: [String]) -> String {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        p.arguments = ["-C", path] + args
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        p.standardError = Pipe()
+        try? p.run()
+        p.waitUntilExit()
+        return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    // Verify it's a git repo
+    let topLevel = run(["rev-parse", "--show-toplevel"])
+    guard !topLevel.isEmpty else { return ProjectGitStats() }
+
+    let weekRaw  = run(["log", "--oneline", "--since=7 days ago"])
+    let weekly   = weekRaw.isEmpty ? 0 : weekRaw.components(separatedBy: "\n").count
+    let lastAge  = run(["log", "-1", "--format=%cr"])
+    let branch   = run(["rev-parse", "--abbrev-ref", "HEAD"])
+
+    return ProjectGitStats(
+        weeklyCommits: weekly,
+        lastCommitAge: lastAge,
+        branch: branch,
+        isGitRepo: true
+    )
+}
+
+// MARK: - Project Row
+
 private struct ProjectRow: View {
     let project: Project
     private let store = ProjectStore.shared
 
+    @State private var gitStats: ProjectGitStats = ProjectGitStats()
+
     private let accent = Color(red: 0.48, green: 0.70, blue: 0.91)
     private let green  = Color(red: 0.27, green: 0.75, blue: 0.43)
+
+    // Progress bar: commits this week vs 5-commit target
+    private var weeklyProgress: Double {
+        min(Double(gitStats.weeklyCommits) / 5.0, 1.0)
+    }
+
+    private var progressColor: Color {
+        switch weeklyProgress {
+        case 0..<0.3: return Color(red: 0.91, green: 0.32, blue: 0.27)  // red — low activity
+        case 0.3..<0.7: return Color(red: 1.0,  green: 0.62, blue: 0.04) // orange — moderate
+        default:       return green                                        // green — active
+        }
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -610,67 +739,113 @@ private struct ProjectRow: View {
                 .frame(width: 2)
                 .padding(.vertical, 2)
 
-            HStack(spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    // Name + language badge
-                    HStack(spacing: 6) {
-                        Text(project.name)
-                            .font(.system(size: 11, weight: project.isActive ? .semibold : .regular))
-                            .foregroundStyle(project.isActive ? .white : Color(white: 0.58))
-                            .lineLimit(1)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        // Name + language badge + branch
+                        HStack(spacing: 6) {
+                            Text(project.name)
+                                .font(.system(size: 11, weight: project.isActive ? .semibold : .regular))
+                                .foregroundStyle(project.isActive ? .white : Color(white: 0.58))
+                                .lineLimit(1)
 
-                        if !project.language.isEmpty {
-                            Text(project.language)
-                                .font(.system(size: 8, weight: .medium))
-                                .foregroundStyle(project.isActive ? accent.opacity(0.8) : Color(white: 0.32))
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 2)
-                                .background(Capsule().fill(
-                                    project.isActive ? accent.opacity(0.1) : Color(white: 0.08)
-                                ))
+                            if !project.language.isEmpty {
+                                Text(project.language)
+                                    .font(.system(size: 8, weight: .medium))
+                                    .foregroundStyle(project.isActive ? accent.opacity(0.8) : Color(white: 0.32))
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .background(Capsule().fill(
+                                        project.isActive ? accent.opacity(0.1) : Color(white: 0.08)
+                                    ))
+                            }
+
+                            if !gitStats.branch.isEmpty && gitStats.branch != "HEAD" {
+                                Text(gitStats.branch)
+                                    .font(.system(size: 8, design: .monospaced))
+                                    .foregroundStyle(Color(white: 0.30))
+                                    .lineLimit(1)
+                            }
+                        }
+
+                        // Git info row
+                        if gitStats.isGitRepo {
+                            HStack(spacing: 8) {
+                                // Weekly commits
+                                Label("\(gitStats.weeklyCommits) this week", systemImage: "arrow.triangle.branch")
+                                    .font(.system(size: 8))
+                                    .foregroundStyle(Color(white: 0.35))
+
+                                if !gitStats.lastCommitAge.isEmpty {
+                                    Text("· \(gitStats.lastCommitAge)")
+                                        .font(.system(size: 8))
+                                        .foregroundStyle(Color(white: 0.28))
+                                }
+                            }
+                        } else if !project.path.isEmpty {
+                            // No git, just path
+                            Text(project.path)
+                                .font(.system(size: 8, design: .monospaced))
+                                .foregroundStyle(Color(white: 0.28))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
                         }
                     }
 
-                    // Path — only shown if set
-                    if !project.path.isEmpty {
-                        Text(project.path)
-                            .font(.system(size: 8, design: .monospaced))
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: 2) {
+                        if project.sessionsToday > 0 {
+                            Text("\(project.sessionsToday) today")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(accent.opacity(0.8))
+                        }
+                        Text(project.totalHoursDisplay)
+                            .font(.system(size: 9))
                             .foregroundStyle(Color(white: 0.28))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
                     }
-                }
 
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 2) {
-                    if project.sessionsToday > 0 {
-                        Text("\(project.sessionsToday) today")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(accent.opacity(0.8))
+                    // Set active / delete
+                    Menu {
+                        Button("Set active") { store.setActive(project) }
+                        Button("Delete", role: .destructive) { store.delete(project) }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 9))
+                            .foregroundStyle(Color(white: 0.25))
+                            .frame(width: 20, height: 20)
                     }
-                    Text(project.totalHoursDisplay)
-                        .font(.system(size: 9))
-                        .foregroundStyle(Color(white: 0.28))
+                    .buttonStyle(.plain)
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
                 }
 
-                // Set active / delete
-                Menu {
-                    Button("Set active") { store.setActive(project) }
-                    Button("Delete", role: .destructive) { store.delete(project) }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 9))
-                        .foregroundStyle(Color(white: 0.25))
-                        .frame(width: 20, height: 20)
+                // Git activity progress bar (only for git repos with a path)
+                if gitStats.isGitRepo {
+                    VStack(alignment: .leading, spacing: 2) {
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 1.5)
+                                    .fill(Color(white: 0.1))
+                                    .frame(height: 3)
+                                RoundedRectangle(cornerRadius: 1.5)
+                                    .fill(progressColor)
+                                    .frame(width: max(4, geo.size.width * weeklyProgress), height: 3)
+                                    .animation(.easeOut(duration: 0.4), value: weeklyProgress)
+                            }
+                        }
+                        .frame(height: 3)
+                    }
+                    .padding(.top, 5)
                 }
-                .buttonStyle(.plain)
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
             }
             .padding(.vertical, 7)
             .padding(.leading, 8)
             .padding(.trailing, 4)
+        }
+        .task(id: project.id) {
+            guard !project.path.isEmpty else { return }
+            gitStats = await fetchGitStats(path: project.path)
         }
     }
 }
