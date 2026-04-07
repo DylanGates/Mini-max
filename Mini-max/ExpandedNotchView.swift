@@ -27,10 +27,7 @@ struct NotchShellView: View {
 
     var body: some View {
         ZStack {
-            NotchShape(
-                bottomCornerRadius: state.isExpanded ? 28 : 10,
-                outerGutterRadius:  state.isExpanded ? 0 : 10
-            )
+            NotchShape(bottomCornerRadius: state.isExpanded ? 28 : 10)
             .fill(Color(red: 11/255, green: 11/255, blue: 11/255))
             .shadow(
                 color: state.isExpanded ? .black.opacity(0.6) : .clear,
