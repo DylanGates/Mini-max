@@ -938,18 +938,18 @@ private struct StreakPanel: View {
                     heatmapSection
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .overlay(alignment: .topTrailing) {
-                    if contributions.isFetching {
-                        ProgressView()
-                            .scaleEffect(0.5)
-                            .frame(width: 14, height: 14)
-                    }
-                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task {
-            if contributions.hasAnyToken {
+            guard contributions.hasAnyToken else { return }
+            // Force-refresh if data is empty or stale (>5 min) so the tab
+            // always shows current data without waiting for the 1h API cache.
+            let lastFetch = UserDefaults.standard.object(forKey: "minimax.github.contributionCacheTime") as? Date
+            let stale = lastFetch.map { Date().timeIntervalSince($0) > 300 } ?? true
+            if contributions.contributionsByUser.isEmpty || stale {
+                await contributions.forceRefresh()
+            } else {
                 await contributions.fetchAll()
             }
         }
@@ -1096,12 +1096,27 @@ private struct StreakPanel: View {
     private var statsColumn: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 1) {
-                Text("\(currentStreak)")
-                    .font(.system(size: 30, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.white)
-                Text("day streak")
-                    .font(.system(size: 9))
-                    .foregroundStyle(Color(white: 0.38))
+                Group {
+                    if contributions.isFetching && currentStreak == 0 {
+                        Text("–")
+                            .foregroundStyle(Color(white: 0.3))
+                    } else {
+                        Text("\(currentStreak)")
+                            .foregroundStyle(.white)
+                    }
+                }
+                .font(.system(size: 30, weight: .bold, design: .monospaced))
+
+                HStack(spacing: 4) {
+                    Text("day streak")
+                        .font(.system(size: 9))
+                        .foregroundStyle(Color(white: 0.38))
+                    if contributions.isFetching {
+                        ProgressView()
+                            .scaleEffect(0.45)
+                            .frame(width: 10, height: 10)
+                    }
+                }
             }
 
             Rectangle()
@@ -1113,7 +1128,7 @@ private struct StreakPanel: View {
 
             Spacer(minLength: 0)
 
-            // Account legend + key button
+            // Account legend
             VStack(alignment: .leading, spacing: 3) {
                 ForEach(accounts) { acc in
                     HStack(spacing: 4) {
@@ -1127,12 +1142,34 @@ private struct StreakPanel: View {
             }
             .padding(.bottom, 6)
 
-            Button { showTokenSetup = true } label: {
-                Image(systemName: "key")
-                    .font(.system(size: 9))
-                    .foregroundStyle(Color(white: 0.28))
+            // Key + refresh buttons
+            HStack(spacing: 8) {
+                Button { showTokenSetup = true } label: {
+                    Image(systemName: "key")
+                        .font(.system(size: 9))
+                        .foregroundStyle(Color(white: 0.28))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    Task { await contributions.forceRefresh() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 9))
+                        .foregroundStyle(contributions.isFetching
+                            ? Color(white: 0.18)
+                            : Color(white: 0.35))
+                        .rotationEffect(.degrees(contributions.isFetching ? 360 : 0))
+                        .animation(
+                            contributions.isFetching
+                                ? .linear(duration: 1).repeatForever(autoreverses: false)
+                                : .default,
+                            value: contributions.isFetching
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(contributions.isFetching)
             }
-            .buttonStyle(.plain)
 
             if let err = contributions.fetchError {
                 Text(err)
