@@ -5,7 +5,7 @@
 ### Phase 0 — Foundation ✅ Complete
 All 6 tabs scaffolded. Stores wired. GitHub multi-account heatmap. Header badge pills.
 
-### Phase 1 — Menu Bar Indicators 🔵 In progress
+### Phase 1 — Menu Bar Indicators ✅ Complete (2026-04-07)
 NSStatusItem with live Pomodoro/streak/events/tasks indicators (Raycast-style).
 
 - [ ] `StatusBarController` — NSStatusItem, custom NSView, 3 layout modes

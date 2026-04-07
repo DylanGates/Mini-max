@@ -34,6 +34,27 @@ Mini-max/
 └── NotchOverlayWindow.swift    — NSPanel, hover, spring animations
 ```
 
+## Validated (Phase 1)
+- ✓ NSStatusItem with live indicator dots — single variableLength item with NSAttributedString
+- ✓ 3 layout modes (primary / ultraCompact / badge) persisted via UserDefaults
+- ✓ 1s Timer polling pattern for @Observable stores in AppKit context
+- ✓ Right-click context menu pattern (set menu → performClick → nil out in async)
+
+## Deferred
+- [ ] `LearningTopic.lastCompletedDate` — needed for real learning streak (currently shows todayTopics.count)
+
+## Key Decisions
+| Decision | Phase | Rationale |
+|---|---|---|
+| Single NSStatusItem (not 5) | 1 | macOS norm, simpler |
+| Notch pill = eyes only | 0 | Design constraint — status in menu bar |
+| PATs in Keychain only | 0 | Security |
+| UserDefaults JSON (not CoreData) | 0 | Already built, migration deferred |
+| `but commit` for all commits | 0 | GitButler manages this repo |
+
 ## Docs
 - Full plan: `~/.claude/plans/synthetic-knitting-avalanche.md`
 - Designs: `/Users/admin/Projects/Apps/notch/designs/notch/expanded.pen`
+
+---
+*Last updated: 2026-04-07 after Phase 1*
