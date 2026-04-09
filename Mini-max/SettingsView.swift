@@ -267,16 +267,52 @@ private struct DataSettingsPane: View {
 
 // MARK: - AI
 
+private struct AIPreset {
+    let name    : String
+    let provider: AIProvider
+    let baseURL : String   // empty = not applicable (Claude)
+    let model   : String
+    let keyHint : String   // placeholder for the API key field
+}
+
+private let aiPresets: [AIPreset] = [
+    // Claude
+    AIPreset(name: "Claude (Anthropic)",    provider: .claude,  baseURL: "",                                                       model: "claude-sonnet-4-6",          keyHint: "sk-ant-…"),
+    // OpenAI
+    AIPreset(name: "GPT-4o (OpenAI)",       provider: .openai,  baseURL: "https://api.openai.com",                                 model: "gpt-4o",                     keyHint: "sk-…"),
+    AIPreset(name: "o3 (OpenAI)",           provider: .openai,  baseURL: "https://api.openai.com",                                 model: "o3",                         keyHint: "sk-…"),
+    // Moonshot / Kimi
+    AIPreset(name: "Kimi K2 (Moonshot)",    provider: .openai,  baseURL: "https://api.moonshot.cn/v1",                             model: "kimi-k2",                    keyHint: "sk-…"),
+    AIPreset(name: "Kimi k1.5 (Moonshot)",  provider: .openai,  baseURL: "https://api.moonshot.cn/v1",                             model: "moonshot-v1-8k",             keyHint: "sk-…"),
+    // DeepSeek
+    AIPreset(name: "DeepSeek Chat",         provider: .openai,  baseURL: "https://api.deepseek.com",                               model: "deepseek-chat",              keyHint: "sk-…"),
+    AIPreset(name: "DeepSeek R1",           provider: .openai,  baseURL: "https://api.deepseek.com",                               model: "deepseek-reasoner",          keyHint: "sk-…"),
+    // Groq
+    AIPreset(name: "Llama 3.3 70B (Groq)",  provider: .openai,  baseURL: "https://api.groq.com/openai/v1",                         model: "llama-3.3-70b-versatile",    keyHint: "gsk_…"),
+    AIPreset(name: "Mixtral (Groq)",        provider: .openai,  baseURL: "https://api.groq.com/openai/v1",                         model: "mixtral-8x7b-32768",         keyHint: "gsk_…"),
+    // Gemini
+    AIPreset(name: "Gemini 2.0 Flash",      provider: .openai,  baseURL: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.0-flash",           keyHint: "AIza…"),
+    AIPreset(name: "Gemini 2.5 Pro",        provider: .openai,  baseURL: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.5-pro-preview-06-05", keyHint: "AIza…"),
+    // Mistral
+    AIPreset(name: "Mistral Large",         provider: .openai,  baseURL: "https://api.mistral.ai/v1",                              model: "mistral-large-latest",       keyHint: "…"),
+    // Local
+    AIPreset(name: "Ollama (local)",        provider: .openai,  baseURL: "http://localhost:11434",                                 model: "llama3.2",                   keyHint: "(leave blank)"),
+    AIPreset(name: "LM Studio (local)",     provider: .openai,  baseURL: "http://localhost:1234",                                  model: "local-model",                keyHint: "(leave blank)"),
+    // Custom
+    AIPreset(name: "Custom…",              provider: .openai,  baseURL: "",                                                       model: "",                           keyHint: "…"),
+]
+
 private struct AISettingsPane: View {
     private let engine = InsightEngine.shared
 
     @AppStorage(InsightEngine.providerUD)    private var providerRaw  = AIProvider.claude.rawValue
     @AppStorage(InsightEngine.claudeKeyUD)   private var claudeKey    = ""
-    @AppStorage(InsightEngine.claudeModelUD) private var claudeModel  = "claude-sonnet-4-5"
+    @AppStorage(InsightEngine.claudeModelUD) private var claudeModel  = "claude-sonnet-4-6"
     @AppStorage(InsightEngine.openAIKeyUD)   private var openAIKey    = ""
     @AppStorage(InsightEngine.openAIBaseUD)  private var openAIBase   = "https://api.openai.com"
     @AppStorage(InsightEngine.openAIModelUD) private var openAIModel  = "gpt-4o"
 
+    @State private var selectedPreset = aiPresets[0].name
     @State private var testResult: String?
     @State private var testing    = false
 
@@ -284,28 +320,41 @@ private struct AISettingsPane: View {
         AIProvider(rawValue: providerRaw) ?? .claude
     }
 
+    private var currentPreset: AIPreset? {
+        aiPresets.first { $0.name == selectedPreset }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             PaneHeader(title: "AI")
             Form {
-                Section("Provider") {
-                    Picker("Provider", selection: $providerRaw) {
-                        Text("Claude (Anthropic)").tag(AIProvider.claude.rawValue)
-                        Text("OpenAI-compatible (GPT-4, Ollama, LM Studio…)").tag(AIProvider.openai.rawValue)
+                Section("Model") {
+                    Picker("Preset", selection: $selectedPreset) {
+                        ForEach(aiPresets, id: \.name) { preset in
+                            Text(preset.name).tag(preset.name)
+                        }
                     }
-                    .pickerStyle(.radioGroup)
+                    .onChange(of: selectedPreset) { _, name in
+                        guard let p = aiPresets.first(where: { $0.name == name }) else { return }
+                        providerRaw = p.provider.rawValue
+                        if p.provider == .openai && !p.baseURL.isEmpty { openAIBase = p.baseURL }
+                        if !p.model.isEmpty {
+                            if p.provider == .claude { claudeModel = p.model }
+                            else                     { openAIModel = p.model }
+                        }
+                    }
                 }
 
                 if provider == .claude {
                     Section("Claude") {
                         LabeledContent("API Key") {
-                            SecureField("sk-ant-…", text: $claudeKey)
+                            SecureField(currentPreset?.keyHint ?? "sk-ant-…", text: $claudeKey)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 260)
                                 .font(.system(.body, design: .monospaced))
                         }
                         LabeledContent("Model") {
-                            TextField("claude-sonnet-4-5", text: $claudeModel)
+                            TextField("claude-sonnet-4-6", text: $claudeModel)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 200)
                                 .font(.system(.body, design: .monospaced))
@@ -315,9 +364,9 @@ private struct AISettingsPane: View {
                             .foregroundStyle(.secondary)
                     }
                 } else {
-                    Section("OpenAI-compatible") {
+                    Section("Connection") {
                         LabeledContent("API Key") {
-                            SecureField("sk-… (leave blank for Ollama)", text: $openAIKey)
+                            SecureField(currentPreset?.keyHint ?? "sk-…", text: $openAIKey)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 260)
                                 .font(.system(.body, design: .monospaced))
@@ -335,7 +384,7 @@ private struct AISettingsPane: View {
                                 .font(.system(.body, design: .monospaced))
                         }
                     } footer: {
-                        Text("For Ollama: set base URL to **http://localhost:11434** and leave the API key blank.")
+                        Text("Fields are pre-filled by the preset and can be overridden. For local models leave the API key blank.")
                             .foregroundStyle(.secondary)
                     }
                 }
