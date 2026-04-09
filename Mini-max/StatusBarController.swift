@@ -45,7 +45,7 @@ final class StatusBarController {
         // Eyes — always present, the brand mark
         let eyeAttachment = NSTextAttachment()
         eyeAttachment.image = makeEyesImage()
-        eyeAttachment.bounds = CGRect(x: 0, y: -2, width: 16, height: 8)
+        eyeAttachment.bounds = CGRect(x: 0, y: -2.5, width: 30, height: 10)
         result.append(NSAttributedString(attachment: eyeAttachment))
 
         // Pomodoro countdown — only when a session is running
@@ -89,21 +89,31 @@ final class StatusBarController {
 
     // MARK: - Eyes image
 
-    /// Draws two capsule eyes matching the collapsed notch pill, tinted white.
+    /// Two circles joined by a thick horizontal bridge.
+    /// Circle radius = 5pt. Bridge height = half the radius = 2.5pt.
     private func makeEyesImage() -> NSImage {
-        let size = NSSize(width: 16, height: 8)
+        let r: CGFloat = 5          // circle radius
+        let bridge: CGFloat = r / 2 // 2.5pt — half the radius
+        let gap: CGFloat = 10       // space between the two circle edges
+        let d = r * 2               // diameter = 10
+        let w = d + gap + d         // total width = 30
+        let h = d                   // total height = 10
+
+        let size = NSSize(width: w, height: h)
         let image = NSImage(size: size)
         image.lockFocus()
 
-        NSColor.white.withAlphaComponent(0.75).setFill()
+        NSColor.white.withAlphaComponent(0.82).setFill()
 
-        // Left eye — 5×7 capsule centred vertically
-        NSBezierPath(roundedRect: NSRect(x: 0, y: 0.5, width: 5, height: 7),
-                     xRadius: 2.5, yRadius: 2.5).fill()
+        // Left circle
+        NSBezierPath(ovalIn: NSRect(x: 0, y: 0, width: d, height: d)).fill()
 
-        // Right eye
-        NSBezierPath(roundedRect: NSRect(x: 11, y: 0.5, width: 5, height: 7),
-                     xRadius: 2.5, yRadius: 2.5).fill()
+        // Right circle
+        NSBezierPath(ovalIn: NSRect(x: d + gap, y: 0, width: d, height: d)).fill()
+
+        // Bridge — centered vertically, spanning between the two circle centers
+        let bridgeY = (h - bridge) / 2
+        NSBezierPath(rect: NSRect(x: r, y: bridgeY, width: gap + d, height: bridge)).fill()
 
         image.unlockFocus()
         return image
