@@ -23,6 +23,9 @@ struct SettingsView: View {
                 NavigationLink(value: "Focus") {
                     Label("Focus", systemImage: "timer")
                 }
+                NavigationLink(value: "AI") {
+                    Label("AI", systemImage: "sparkles")
+                }
                 NavigationLink(value: "Data") {
                     Label("Data", systemImage: "cylinder")
                 }
@@ -41,6 +44,7 @@ struct SettingsView: View {
                 case "Notifications": NotificationsSettingsPane()
                 case "GitHub":        GitHubSettingsPane()
                 case "Focus":         FocusSettingsPane()
+                case "AI":            AISettingsPane()
                 case "Data":          DataSettingsPane()
                 case "About":         AboutSettingsPane()
                 default:              GeneralSettingsPane()
@@ -257,6 +261,135 @@ private struct DataSettingsPane: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
             }
+        }
+    }
+}
+
+// MARK: - AI
+
+private struct AISettingsPane: View {
+    private let engine = InsightEngine.shared
+
+    @AppStorage(InsightEngine.providerUD)    private var providerRaw  = AIProvider.claude.rawValue
+    @AppStorage(InsightEngine.claudeKeyUD)   private var claudeKey    = ""
+    @AppStorage(InsightEngine.claudeModelUD) private var claudeModel  = "claude-sonnet-4-5"
+    @AppStorage(InsightEngine.openAIKeyUD)   private var openAIKey    = ""
+    @AppStorage(InsightEngine.openAIBaseUD)  private var openAIBase   = "https://api.openai.com"
+    @AppStorage(InsightEngine.openAIModelUD) private var openAIModel  = "gpt-4o"
+
+    @State private var testResult: String?
+    @State private var testing    = false
+
+    private var provider: AIProvider {
+        AIProvider(rawValue: providerRaw) ?? .claude
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            PaneHeader(title: "AI")
+            Form {
+                Section("Provider") {
+                    Picker("Provider", selection: $providerRaw) {
+                        Text("Claude (Anthropic)").tag(AIProvider.claude.rawValue)
+                        Text("OpenAI-compatible (GPT-4, Ollama, LM Studio…)").tag(AIProvider.openai.rawValue)
+                    }
+                    .pickerStyle(.radioGroup)
+                }
+
+                if provider == .claude {
+                    Section("Claude") {
+                        LabeledContent("API Key") {
+                            SecureField("sk-ant-…", text: $claudeKey)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 260)
+                                .font(.system(.body, design: .monospaced))
+                        }
+                        LabeledContent("Model") {
+                            TextField("claude-sonnet-4-5", text: $claudeModel)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 200)
+                                .font(.system(.body, design: .monospaced))
+                        }
+                    } footer: {
+                        Text("Create an API key at console.anthropic.com.")
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Section("OpenAI-compatible") {
+                        LabeledContent("API Key") {
+                            SecureField("sk-… (leave blank for Ollama)", text: $openAIKey)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 260)
+                                .font(.system(.body, design: .monospaced))
+                        }
+                        LabeledContent("Base URL") {
+                            TextField("https://api.openai.com", text: $openAIBase)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 260)
+                                .font(.system(.body, design: .monospaced))
+                        }
+                        LabeledContent("Model") {
+                            TextField("gpt-4o", text: $openAIModel)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 200)
+                                .font(.system(.body, design: .monospaced))
+                        }
+                    } footer: {
+                        Text("For Ollama: set base URL to **http://localhost:11434** and leave the API key blank.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Section {
+                    HStack(spacing: 12) {
+                        Button(testing ? "Testing…" : "Test Connection") {
+                            testing = true
+                            testResult = nil
+                            Task {
+                                do {
+                                    let result = try await engine.regenerate(for: .awareness)
+                                    await MainActor.run {
+                                        testResult = "✓ \(result.prefix(80))"
+                                        testing = false
+                                    }
+                                } catch {
+                                    await MainActor.run {
+                                        testResult = "✗ \(error.localizedDescription)"
+                                        testing = false
+                                    }
+                                }
+                            }
+                        }
+                        .disabled(testing)
+                        .buttonStyle(.bordered)
+
+                        if let result = testResult {
+                            Text(result)
+                                .font(.system(size: 11))
+                                .foregroundStyle(result.hasPrefix("✓") ? Color.green : Color.red)
+                                .lineLimit(2)
+                        }
+                    }
+                } footer: {
+                    Text("Sends one test request using the Home tab context.")
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Cache") {
+                    LabeledContent("Insight Cache") {
+                        Button("Clear Cache") {
+                            UserDefaults.standard.removeObject(forKey: "minimax.insight.cache")
+                            UserDefaults.standard.removeObject(forKey: "minimax.insight.cacheTime")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                } footer: {
+                    Text("Insights are cached per tab for 5 minutes. Clear to force a fresh fetch.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .formStyle(.grouped)
         }
     }
 }
