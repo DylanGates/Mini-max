@@ -85,6 +85,9 @@ struct TasksPanel: View {
             } else {
                 taskList
             }
+
+            InsightLineView(tab: .tasks)
+                .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .animation(.easeInOut(duration: 0.15), value: isAdding)

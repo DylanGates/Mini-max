@@ -396,6 +396,9 @@ private struct MiniMaxHomePanel: View {
 
             // Bottom: today summary
             todaySummary
+
+            InsightLineView(tab: .home, verbose: true)
+                .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
@@ -504,36 +507,46 @@ private struct ProjectsPanel: View {
     @State private var newName = ""
     @State private var newLanguage = ""
     @State private var newPath = ""
+    @State private var eyesTrigger = UUID()
 
     private let accent = Color(red: 0.48, green: 0.70, blue: 0.91)
     private let green  = Color(red: 0.27, green: 0.75, blue: 0.43)
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-                .padding(.bottom, 10)
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: 0) {
+                header
+                    .padding(.bottom, 10)
 
-            if showingAdd {
-                addForm
-                    .padding(.bottom, 8)
-            }
+                if showingAdd {
+                    addForm
+                        .padding(.bottom, 8)
+                }
 
-            if store.projects.isEmpty {
-                emptyState
-            } else {
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        ForEach(store.projects) { project in
-                            ProjectRow(project: project)
-                            if project.id != store.projects.last?.id {
-                                Divider()
-                                    .background(Color(white: 0.1))
-                                    .padding(.leading, 10)
+                if store.projects.isEmpty {
+                    emptyState
+                } else {
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 0) {
+                            ForEach(store.projects) { project in
+                                ProjectRow(project: project)
+                                if project.id != store.projects.last?.id {
+                                    Divider()
+                                        .background(Color(white: 0.1))
+                                        .padding(.leading, 10)
+                                }
                             }
                         }
                     }
                 }
+
+                InsightLineView(tab: .projects, verbose: true, refreshTrigger: eyesTrigger)
+                    .padding(.top, 4)
             }
+
+            MiniMaxEyes(size: .small, onTap: { eyesTrigger = UUID() })
+                .padding(.top, 6)
+                .padding(.trailing, 2)
         }
     }
 
@@ -927,6 +940,8 @@ private struct StreakPanel: View {
     }
 
     var body: some View {
+        ZStack(alignment: .topTrailing) {
+        VStack(spacing: 0) {
         Group {
             if !contributions.hasAnyToken || showTokenSetup {
                 // Full-area setup — never competes with heatmap
@@ -953,6 +968,15 @@ private struct StreakPanel: View {
                 await contributions.fetchAll()
             }
         }
+
+        InsightLineView(tab: .streak, verbose: true, refreshTrigger: eyesTrigger)
+            .padding(.top, 4)
+        } // end VStack
+
+        MiniMaxEyes(size: .small, onTap: { eyesTrigger = UUID() })
+            .padding(.top, 6)
+            .padding(.trailing, 2)
+        } // end ZStack
     }
 
     // MARK: - Setup View (full area, no heatmap behind it)

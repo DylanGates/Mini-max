@@ -61,6 +61,9 @@ struct FocusPanel: View {
                 controlsColumn
             }
             .frame(maxHeight: .infinity)
+
+            InsightLineView(tab: .focus)
+                .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .animation(.easeInOut(duration: 0.2), value: showSettings)
