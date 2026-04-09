@@ -668,8 +668,7 @@ private struct ProjectsPanel: View {
 
 struct ProjectGitStats {
     var weeklyCommits: Int = 0
-    var lastCommitAge: String = ""          // human label e.g. "3h ago"
-    var lastCommitTimestamp: TimeInterval = 0  // unix timestamp for scoring
+    var lastCommitAge: String = ""   // e.g. "3h ago"
     var branch: String = ""
     var isGitRepo: Bool = false
 }
@@ -695,16 +694,14 @@ private func fetchGitStats(path: String) async -> ProjectGitStats {
     let topLevel = run(["rev-parse", "--show-toplevel"])
     guard !topLevel.isEmpty else { return ProjectGitStats() }
 
-    let weekRaw   = run(["log", "--oneline", "--since=7 days ago"])
-    let weekly    = weekRaw.isEmpty ? 0 : weekRaw.components(separatedBy: "\n").count
-    let lastAge   = run(["log", "-1", "--format=%cr"])
-    let lastStamp = TimeInterval(run(["log", "-1", "--format=%ct"])) ?? 0
-    let branch    = run(["rev-parse", "--abbrev-ref", "HEAD"])
+    let weekRaw  = run(["log", "--oneline", "--since=7 days ago"])
+    let weekly   = weekRaw.isEmpty ? 0 : weekRaw.components(separatedBy: "\n").count
+    let lastAge  = run(["log", "-1", "--format=%cr"])
+    let branch   = run(["rev-parse", "--abbrev-ref", "HEAD"])
 
     return ProjectGitStats(
         weeklyCommits: weekly,
         lastCommitAge: lastAge,
-        lastCommitTimestamp: lastStamp,
         branch: branch,
         isGitRepo: true
     )
@@ -845,21 +842,22 @@ private struct ProjectRow: View {
                     .menuIndicator(.hidden)
                 }
 
-                // Activity progress bar — shown whenever there's any signal
-                if gitStats.isGitRepo || project.sessionsToday > 0 {
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 1.5)
-                                .fill(Color(white: 0.1))
-                                .frame(height: 3)
-                            RoundedRectangle(cornerRadius: 1.5)
-                                .fill(progressColor)
-                                .frame(width: max(activityScore > 0 ? 4 : 0,
-                                                  geo.size.width * activityScore), height: 3)
-                                .animation(.easeOut(duration: 0.5), value: activityScore)
+                // Git activity progress bar (only for git repos with a path)
+                if gitStats.isGitRepo {
+                    VStack(alignment: .leading, spacing: 2) {
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 1.5)
+                                    .fill(Color(white: 0.1))
+                                    .frame(height: 3)
+                                RoundedRectangle(cornerRadius: 1.5)
+                                    .fill(progressColor)
+                                    .frame(width: max(4, geo.size.width * weeklyProgress), height: 3)
+                                    .animation(.easeOut(duration: 0.4), value: weeklyProgress)
+                            }
                         }
+                        .frame(height: 3)
                     }
-                    .frame(height: 3)
                     .padding(.top, 5)
                 }
             }
