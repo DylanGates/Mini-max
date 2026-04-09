@@ -852,8 +852,8 @@ private struct ProjectRow: View {
                                     .frame(height: 3)
                                 RoundedRectangle(cornerRadius: 1.5)
                                     .fill(progressColor)
-                                    .frame(width: max(4, geo.size.width * weeklyProgress), height: 3)
-                                    .animation(.easeOut(duration: 0.4), value: weeklyProgress)
+                                    .frame(width: max(4, geo.size.width * activityScore), height: 3)
+                                    .animation(.easeOut(duration: 0.4), value: activityScore)
                             }
                         }
                         .frame(height: 3)
