@@ -94,9 +94,9 @@ final class StatusBarController {
     private func makeEyesImage() -> NSImage {
         let r: CGFloat = 5          // circle radius
         let bridge: CGFloat = r / 2 // 2.5pt — half the radius
-        let gap: CGFloat = 10       // space between the two circle edges
+        let gap: CGFloat = 6       // space between the two circle edges
         let d = r * 2               // diameter = 10
-        let w = d + gap + d         // total width = 30
+        let w = d + gap + d         // total width = 26
         let h = d                   // total height = 10
 
         let size = NSSize(width: w, height: h)
