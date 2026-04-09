@@ -84,6 +84,13 @@ final class InsightEngine {
     private let cacheKey     = "minimax.insight.cache"
     private let cacheTimeKey = "minimax.insight.cacheTime"
 
+    // Store references — read-only, synchronous
+    private let pomodoro  = PomodoroManager.shared
+    private let projects  = ProjectStore.shared
+    private let taskStore = TaskStore.shared
+    private let learning  = LearningStore.shared
+    private let github    = GitHubContributionStore.shared
+
     // Current provider — reads from UserDefaults, defaults to Claude
     var provider: AIProvider {
         get {
@@ -235,17 +242,113 @@ final class InsightEngine {
         return try? JSONDecoder().decode([String: Double].self, from: d)
     }
 
-    // MARK: - Placeholder prompts (replaced by context builders in Plan 01-02)
+    // MARK: - Context-aware prompt builders
 
     private func prompt(for tab: NotchTab) -> String {
         switch tab {
-        case .focus:    return "Give one brief insight about focus and productivity. One sentence only."
-        case .projects: return "Give one brief insight about software projects and momentum. One sentence only."
-        case .tasks:    return "Give one brief insight about task management and prioritization. One sentence only."
-        case .streak:   return "Give one brief insight about consistency and building habits. One sentence only."
-        case .home:     return "Give one brief encouraging insight to start the day well. One sentence only."
-        case .learn:    return "Give one brief insight about learning and skill development. One sentence only."
+        case .focus:    return focusPrompt()
+        case .projects: return projectsPrompt()
+        case .tasks:    return tasksPrompt()
+        case .streak:   return streakPrompt()
+        case .learn:    return learnPrompt()
+        case .home:     return homePrompt()
         }
+    }
+
+    private func focusPrompt() -> String {
+        let phase = pomodoro.phase
+        if phase.isIdle {
+            return "User has no active Pomodoro session right now. Give one brief insight about starting focused work. One sentence only."
+        }
+        let minsRemaining = Int(phase.remaining / 60)
+        let secsRemaining = Int(phase.remaining) % 60
+        let timeStr = "\(minsRemaining)m \(secsRemaining)s"
+        let sessions = pomodoro.completedSessions
+        let taskStr  = pomodoro.currentTask.map { "Linked to task: \($0.title)." } ?? "No linked task."
+        return "Focus session active: \(phase.label) with \(timeStr) remaining. \(sessions) session(s) completed today. \(taskStr) Give one brief observation about their current focus state. One sentence only."
+    }
+
+    private func projectsPrompt() -> String {
+        guard !projects.projects.isEmpty else {
+            return "User has no projects added yet. Give one brief encouraging insight about starting a project. One sentence only."
+        }
+        if let active = projects.active {
+            let others = projects.projects.count - 1
+            let othersStr = others > 0 ? "\(others) other project(s) tracked." : "Only project."
+            return "Active project: \(active.name) (\(active.language)). \(active.sessionsToday) session(s) today, \(active.totalHoursDisplay) total. \(othersStr) Give one brief insight about their project momentum. One sentence only."
+        }
+        let count = projects.projects.count
+        let total = projects.projects.reduce(0) { $0 + $1.sessionsToday }
+        return "\(count) project(s) tracked, \(total) sessions today, none currently active. Give one brief insight about picking a project to focus on. One sentence only."
+    }
+
+    private func tasksPrompt() -> String {
+        let pending   = taskStore.pending
+        let completed = taskStore.completed.filter {
+            Calendar.current.isDateInToday($0.completedAt ?? .distantPast)
+        }
+        guard !pending.isEmpty || !completed.isEmpty else {
+            return "User has no tasks today. Give one brief insight about building a task habit. One sentence only."
+        }
+        let overdue  = pending.filter { $0.urgency == .overdue }.count
+        let highPri  = pending.filter { $0.priority == .high }.count
+        return "Tasks: \(pending.count) pending (\(overdue) overdue, \(highPri) high-priority), \(completed.count) completed today. Give one brief observation about their task load. One sentence only."
+    }
+
+    private func streakPrompt() -> String {
+        let (streak, today, yesterday) = currentStreakAndToday()
+        guard github.contributionsByUser.isEmpty == false else {
+            return "User has no GitHub data connected. Give one brief insight about consistency in coding. One sentence only."
+        }
+        return "GitHub: \(streak)-day streak. \(today) commit(s) today, \(yesterday) yesterday. Give one brief observation about their coding consistency. One sentence only."
+    }
+
+    private func learnPrompt() -> String {
+        let todayTopics = learning.todayTopics
+        guard !todayTopics.isEmpty else {
+            return "No learning topics scheduled today. Give one brief insight about choosing what to learn next. One sentence only."
+        }
+        let topicList = todayTopics.prefix(3)
+            .map { "\($0.title) (\($0.progress)%)" }
+            .joined(separator: ", ")
+        return "Learning topics today: \(topicList). Give one brief observation about their learning progress. One sentence only."
+    }
+
+    private func homePrompt() -> String {
+        let totalSessions = projects.projects.reduce(0) { $0 + $1.sessionsToday }
+        let pendingCount  = taskStore.pending.count
+        let (streak, _, _) = currentStreakAndToday()
+        let learnStr = learning.todayTopics.first.map { ", studying \($0.title) today" } ?? ""
+        return "Today so far: \(totalSessions) focus session(s), \(pendingCount) task(s) pending, \(streak)-day GitHub streak\(learnStr). Give one brief encouraging observation about their day. One sentence only."
+    }
+
+    // MARK: - Streak helper (used by streakPrompt + homePrompt)
+
+    private func currentStreakAndToday() -> (streak: Int, todayCount: Int, yesterdayCount: Int) {
+        let contributions = github.contributionsByUser
+        guard !contributions.isEmpty else { return (0, 0, 0) }
+
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = TimeZone(identifier: "UTC")
+        let cal = Calendar(identifier: .gregorian)
+
+        func totalCommits(on date: Date) -> Int {
+            let key = df.string(from: date)
+            return contributions.values.reduce(0) { $0 + ($1[key]?.count ?? 0) }
+        }
+
+        var streak = 0
+        var date = Date()
+        while totalCommits(on: date) > 0 {
+            streak += 1
+            guard let prev = cal.date(byAdding: .day, value: -1, to: date) else { break }
+            date = prev
+        }
+
+        let today     = totalCommits(on: Date())
+        let yesterday = totalCommits(on: cal.date(byAdding: .day, value: -1, to: Date()) ?? Date())
+        return (streak, today, yesterday)
     }
 }
 
