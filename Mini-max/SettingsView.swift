@@ -293,6 +293,9 @@ private let aiPresets: [AIPreset] = [
     // Gemini
     AIPreset(name: "Gemini 2.0 Flash",      provider: .openai,  baseURL: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.0-flash",           keyHint: "AIza…"),
     AIPreset(name: "Gemini 2.5 Pro",        provider: .openai,  baseURL: "https://generativelanguage.googleapis.com/v1beta/openai", model: "gemini-2.5-pro-preview-06-05", keyHint: "AIza…"),
+    // xAI / Grok
+    AIPreset(name: "Grok 3 (xAI)",          provider: .openai,  baseURL: "https://api.x.ai/v1",                                    model: "grok-3",                     keyHint: "xai-…"),
+    AIPreset(name: "Grok 3 Mini (xAI)",     provider: .openai,  baseURL: "https://api.x.ai/v1",                                    model: "grok-3-mini",                keyHint: "xai-…"),
     // Mistral
     AIPreset(name: "Mistral Large",         provider: .openai,  baseURL: "https://api.mistral.ai/v1",                              model: "mistral-large-latest",       keyHint: "…"),
     // Local
