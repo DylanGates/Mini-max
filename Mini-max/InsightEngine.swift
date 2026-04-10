@@ -106,18 +106,18 @@ final class InsightEngine {
 
     // MARK: - Public API
 
-    func fetch(for tab: NotchTab) async throws -> String {
-        if let cached = cachedInsight(for: tab) { return cached }
-        return try await callAPI(prompt: prompt(for: tab), tab: tab)
+    func fetch(for tab: NotchTab, verbose: Bool = false) async throws -> String {
+        if let cached = cachedInsight(for: tab, verbose: verbose) { return cached }
+        return try await callAPI(prompt: prompt(for: tab, verbose: verbose), tab: tab, verbose: verbose)
     }
 
-    func regenerate(for tab: NotchTab) async throws -> String {
-        return try await callAPI(prompt: prompt(for: tab), tab: tab)
+    func regenerate(for tab: NotchTab, verbose: Bool = false) async throws -> String {
+        return try await callAPI(prompt: prompt(for: tab, verbose: verbose), tab: tab, verbose: verbose)
     }
 
     // MARK: - Dispatch
 
-    private func callAPI(prompt text: String, tab: NotchTab) async throws -> String {
+    private func callAPI(prompt text: String, tab: NotchTab, verbose: Bool) async throws -> String {
         isLoading = true
         lastError = nil
         defer { isLoading = false }
@@ -125,11 +125,11 @@ final class InsightEngine {
         do {
             let result: String
             switch provider {
-            case .claude: result = try await callClaude(prompt: text)
-            case .openai: result = try await callOpenAI(prompt: text)
+            case .claude: result = try await callClaude(prompt: text, verbose: verbose)
+            case .openai: result = try await callOpenAI(prompt: text, verbose: verbose)
             }
             let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
-            cacheInsight(trimmed, for: tab)
+            cacheInsight(trimmed, for: tab, verbose: verbose)
             return trimmed
         } catch let e as InsightError {
             lastError = e
@@ -143,7 +143,7 @@ final class InsightEngine {
 
     // MARK: - Claude
 
-    private func callClaude(prompt text: String) async throws -> String {
+    private func callClaude(prompt text: String, verbose: Bool) async throws -> String {
         let key = UserDefaults.standard.string(forKey: Self.claudeKeyUD) ?? ""
         guard !key.isEmpty else { throw InsightError.missingAPIKey }
 
@@ -152,7 +152,7 @@ final class InsightEngine {
 
         let body = ClaudeRequest(
             model: model,
-            max_tokens: 120,
+            max_tokens: verbose ? 400 : 120,
             messages: [ClaudeMessage(role: "user", content: text)]
         )
         var req = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)
@@ -175,7 +175,7 @@ final class InsightEngine {
 
     // MARK: - OpenAI-compatible (GPT-4, Ollama, LM Studio, etc.)
 
-    private func callOpenAI(prompt text: String) async throws -> String {
+    private func callOpenAI(prompt text: String, verbose: Bool) async throws -> String {
         // Ollama and local servers don't need a key — fall through with empty key
         let key   = UserDefaults.standard.string(forKey: Self.openAIKeyUD) ?? ""
         let base  = UserDefaults.standard.string(forKey: Self.openAIBaseUD)
@@ -189,7 +189,7 @@ final class InsightEngine {
 
         let body = OAIRequest(
             model: model,
-            max_tokens: 120,
+            max_tokens: verbose ? 400 : 120,
             messages: [OAIMessage(role: "user", content: text)]
         )
         var req = URLRequest(url: URL(string: "\(base)/v1/chat/completions")!)
@@ -213,8 +213,8 @@ final class InsightEngine {
 
     // MARK: - Cache
 
-    private func cachedInsight(for tab: NotchTab) -> String? {
-        let k = tab.cacheKey
+    private func cachedInsight(for tab: NotchTab, verbose: Bool) -> String? {
+        let k = verbose ? tab.verboseCacheKey : tab.cacheKey
         guard let times = cachedTimes(), let ts = times[k],
               Date().timeIntervalSince1970 - ts < cacheTTL,
               let texts = cachedTexts(), let text = texts[k]
@@ -222,8 +222,8 @@ final class InsightEngine {
         return text
     }
 
-    private func cacheInsight(_ text: String, for tab: NotchTab) {
-        let k = tab.cacheKey
+    private func cacheInsight(_ text: String, for tab: NotchTab, verbose: Bool) {
+        let k = verbose ? tab.verboseCacheKey : tab.cacheKey
         var texts = cachedTexts() ?? [:]
         var times = cachedTimes() ?? [:]
         texts[k] = text
@@ -244,82 +244,91 @@ final class InsightEngine {
 
     // MARK: - Context-aware prompt builders
 
-    private func prompt(for tab: NotchTab) -> String {
+    private func prompt(for tab: NotchTab, verbose: Bool) -> String {
         switch tab {
-        case .focus:    return focusPrompt()
-        case .projects: return projectsPrompt()
-        case .tasks:    return tasksPrompt()
-        case .streak:   return streakPrompt()
-        case .learn:    return learnPrompt()
-        case .home:     return homePrompt()
+        case .focus:    return focusPrompt(verbose: verbose)
+        case .projects: return projectsPrompt(verbose: verbose)
+        case .tasks:    return tasksPrompt(verbose: verbose)
+        case .streak:   return streakPrompt(verbose: verbose)
+        case .learn:    return learnPrompt(verbose: verbose)
+        case .home:     return homePrompt(verbose: verbose)
         }
     }
 
-    private func focusPrompt() -> String {
+    private let briefInstruction  = "Give one brief observation. One sentence only."
+    private let verboseInstruction = "Give a 2–4 sentence analysis referencing the specific numbers from the data above."
+
+    private func focusPrompt(verbose: Bool) -> String {
+        let instruction = verbose ? verboseInstruction : briefInstruction
         let phase = pomodoro.phase
         if phase.isIdle {
-            return "User has no active Pomodoro session right now. Give one brief insight about starting focused work. One sentence only."
+            return "User has no active Pomodoro session right now. \(instruction)"
         }
         let minsRemaining = Int(phase.remaining / 60)
         let secsRemaining = Int(phase.remaining) % 60
         let timeStr = "\(minsRemaining)m \(secsRemaining)s"
         let sessions = pomodoro.completedSessions
         let taskStr  = pomodoro.currentTask.map { "Linked to task: \($0.title)." } ?? "No linked task."
-        return "Focus session active: \(phase.label) with \(timeStr) remaining. \(sessions) session(s) completed today. \(taskStr) Give one brief observation about their current focus state. One sentence only."
+        return "Focus session active: \(phase.label) with \(timeStr) remaining. \(sessions) session(s) completed today. \(taskStr) \(instruction)"
     }
 
-    private func projectsPrompt() -> String {
+    private func projectsPrompt(verbose: Bool) -> String {
+        let instruction = verbose ? verboseInstruction : briefInstruction
         guard !projects.projects.isEmpty else {
-            return "User has no projects added yet. Give one brief encouraging insight about starting a project. One sentence only."
+            return "User has no projects added yet. \(instruction)"
         }
         if let active = projects.active {
             let others = projects.projects.count - 1
             let othersStr = others > 0 ? "\(others) other project(s) tracked." : "Only project."
-            return "Active project: \(active.name) (\(active.language)). \(active.sessionsToday) session(s) today, \(active.totalHoursDisplay) total. \(othersStr) Give one brief insight about their project momentum. One sentence only."
+            return "Active project: \(active.name) (\(active.language)). \(active.sessionsToday) session(s) today, \(active.totalHoursDisplay) total. \(othersStr) \(instruction)"
         }
         let count = projects.projects.count
         let total = projects.projects.reduce(0) { $0 + $1.sessionsToday }
-        return "\(count) project(s) tracked, \(total) sessions today, none currently active. Give one brief insight about picking a project to focus on. One sentence only."
+        return "\(count) project(s) tracked, \(total) sessions today, none currently active. \(instruction)"
     }
 
-    private func tasksPrompt() -> String {
+    private func tasksPrompt(verbose: Bool) -> String {
+        let instruction = verbose ? verboseInstruction : briefInstruction
         let pending   = taskStore.pending
         let completed = taskStore.completed.filter {
             Calendar.current.isDateInToday($0.completedAt ?? .distantPast)
         }
         guard !pending.isEmpty || !completed.isEmpty else {
-            return "User has no tasks today. Give one brief insight about building a task habit. One sentence only."
+            return "User has no tasks today. \(instruction)"
         }
         let overdue  = pending.filter { $0.urgency == .overdue }.count
         let highPri  = pending.filter { $0.priority == .high }.count
-        return "Tasks: \(pending.count) pending (\(overdue) overdue, \(highPri) high-priority), \(completed.count) completed today. Give one brief observation about their task load. One sentence only."
+        return "Tasks: \(pending.count) pending (\(overdue) overdue, \(highPri) high-priority), \(completed.count) completed today. \(instruction)"
     }
 
-    private func streakPrompt() -> String {
+    private func streakPrompt(verbose: Bool) -> String {
+        let instruction = verbose ? verboseInstruction : briefInstruction
         let (streak, today, yesterday) = currentStreakAndToday()
         guard github.contributionsByUser.isEmpty == false else {
-            return "User has no GitHub data connected. Give one brief insight about consistency in coding. One sentence only."
+            return "User has no GitHub data connected. \(instruction)"
         }
-        return "GitHub: \(streak)-day streak. \(today) commit(s) today, \(yesterday) yesterday. Give one brief observation about their coding consistency. One sentence only."
+        return "GitHub: \(streak)-day streak. \(today) commit(s) today, \(yesterday) yesterday. \(instruction)"
     }
 
-    private func learnPrompt() -> String {
+    private func learnPrompt(verbose: Bool) -> String {
+        let instruction = verbose ? verboseInstruction : briefInstruction
         let todayTopics = learning.todayTopics
         guard !todayTopics.isEmpty else {
-            return "No learning topics scheduled today. Give one brief insight about choosing what to learn next. One sentence only."
+            return "No learning topics scheduled today. \(instruction)"
         }
         let topicList = todayTopics.prefix(3)
             .map { "\($0.title) (\($0.progress)%)" }
             .joined(separator: ", ")
-        return "Learning topics today: \(topicList). Give one brief observation about their learning progress. One sentence only."
+        return "Learning topics today: \(topicList). \(instruction)"
     }
 
-    private func homePrompt() -> String {
+    private func homePrompt(verbose: Bool) -> String {
+        let instruction = verbose ? verboseInstruction : briefInstruction
         let totalSessions = projects.projects.reduce(0) { $0 + $1.sessionsToday }
         let pendingCount  = taskStore.pending.count
         let (streak, _, _) = currentStreakAndToday()
         let learnStr = learning.todayTopics.first.map { ", studying \($0.title) today" } ?? ""
-        return "Today so far: \(totalSessions) focus session(s), \(pendingCount) task(s) pending, \(streak)-day GitHub streak\(learnStr). Give one brief encouraging observation about their day. One sentence only."
+        return "Today so far: \(totalSessions) focus session(s), \(pendingCount) task(s) pending, \(streak)-day GitHub streak\(learnStr). \(instruction)"
     }
 
     // MARK: - Streak helper (used by streakPrompt + homePrompt)
@@ -365,4 +374,6 @@ extension NotchTab {
         case .focus:    return "focus"
         }
     }
+
+    var verboseCacheKey: String { "\(cacheKey)-verbose" }
 }

@@ -62,7 +62,7 @@ struct FocusPanel: View {
             }
             .frame(maxHeight: .infinity)
 
-            InsightLineView(tab: .focus)
+            InsightLineView(tab: .focus, verbose: true)
                 .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

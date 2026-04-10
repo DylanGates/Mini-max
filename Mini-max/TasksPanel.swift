@@ -86,7 +86,7 @@ struct TasksPanel: View {
                 taskList
             }
 
-            InsightLineView(tab: .tasks)
+            InsightLineView(tab: .tasks, verbose: true)
                 .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

@@ -66,7 +66,7 @@ struct LearningPanel: View {
                 .scrollContentBackground(.hidden)
             }
 
-            InsightLineView(tab: .learn)
+            InsightLineView(tab: .learn, verbose: true)
                 .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

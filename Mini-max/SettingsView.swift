@@ -349,7 +349,7 @@ private struct AISettingsPane: View {
                 }
 
                 if provider == .claude {
-                    Section("Claude") {
+                    Section(header: Text("Claude"), footer: Text("Create an API key at console.anthropic.com.").foregroundStyle(.secondary)) {
                         LabeledContent("API Key") {
                             SecureField(currentPreset?.keyHint ?? "sk-ant-…", text: $claudeKey)
                                 .textFieldStyle(.roundedBorder)
@@ -362,12 +362,9 @@ private struct AISettingsPane: View {
                                 .frame(width: 200)
                                 .font(.system(.body, design: .monospaced))
                         }
-                    } footer: {
-                        Text("Create an API key at console.anthropic.com.")
-                            .foregroundStyle(.secondary)
                     }
                 } else {
-                    Section("Connection") {
+                    Section(header: Text("Connection"), footer: Text("Fields are pre-filled by the preset and can be overridden. For local models leave the API key blank.").foregroundStyle(.secondary)) {
                         LabeledContent("API Key") {
                             SecureField(currentPreset?.keyHint ?? "sk-…", text: $openAIKey)
                                 .textFieldStyle(.roundedBorder)
@@ -386,9 +383,6 @@ private struct AISettingsPane: View {
                                 .frame(width: 200)
                                 .font(.system(.body, design: .monospaced))
                         }
-                    } footer: {
-                        Text("Fields are pre-filled by the preset and can be overridden. For local models leave the API key blank.")
-                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -427,7 +421,7 @@ private struct AISettingsPane: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Cache") {
+                Section(header: Text("Cache"), footer: Text("Insights are cached per tab for 5 minutes. Clear to force a fresh fetch.").foregroundStyle(.secondary)) {
                     LabeledContent("Insight Cache") {
                         Button("Clear Cache") {
                             UserDefaults.standard.removeObject(forKey: "minimax.insight.cache")
@@ -436,9 +430,6 @@ private struct AISettingsPane: View {
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                     }
-                } footer: {
-                    Text("Insights are cached per tab for 5 minutes. Clear to force a fresh fetch.")
-                        .foregroundStyle(.secondary)
                 }
             }
             .formStyle(.grouped)
