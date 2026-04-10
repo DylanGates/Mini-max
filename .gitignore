@@ -29,3 +29,7 @@ Thumbs.db
 
 # Crash logs
 *.crash
+
+# PAUL framework (local only — never commit)
+.paul/
+apps/**/.paul/
