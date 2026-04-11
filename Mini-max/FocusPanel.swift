@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct FocusPanel: View {
+    @Binding var eyesTrigger: UUID
     private let pomodoro  = PomodoroManager.shared
     private let taskStore = TaskStore.shared
     @State private var showSettings = false
@@ -62,7 +63,7 @@ struct FocusPanel: View {
             }
             .frame(maxHeight: .infinity)
 
-            InsightLineView(tab: .focus, verbose: true)
+            InsightLineView(tab: .focus, verbose: true, refreshTrigger: eyesTrigger)
                 .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

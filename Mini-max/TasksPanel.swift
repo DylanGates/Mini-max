@@ -69,6 +69,7 @@ struct TasksPanel: View {
     @State private var customDate  = Date()
     @State private var showDatePicker = false
     @State private var newNotes    = ""
+    @Binding var eyesTrigger: UUID
 
     private let accent = Color(red: 0.48, green: 0.70, blue: 0.91)
 
@@ -86,7 +87,7 @@ struct TasksPanel: View {
                 taskList
             }
 
-            InsightLineView(tab: .tasks, verbose: true)
+            InsightLineView(tab: .focus, verbose: true, refreshTrigger: eyesTrigger)
                 .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

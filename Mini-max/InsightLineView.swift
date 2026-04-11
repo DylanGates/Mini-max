@@ -6,6 +6,7 @@ import SwiftUI
 struct InsightLineView: View {
     let tab: NotchTab
     var verbose: Bool = false
+    var refreshTrigger: UUID = UUID()
 
     @State private var insight: String? = nil
     @State private var pulse = false
@@ -63,7 +64,7 @@ struct InsightLineView: View {
                     }
             }
         }
-        .task(id: tab) {
+        .task(id: refreshTrigger) {
             insight = nil
             insight = try? await engine.fetch(for: tab, verbose: verbose)
         }
