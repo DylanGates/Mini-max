@@ -875,6 +875,7 @@ private struct StreakPanel: View {
 
     @State private var showTokenSetup = false
     @State private var tokenDrafts: [String: String] = [:]
+    @State private var eyesTrigger = UUID()
 
     // The Sunday that starts the oldest visible week
     private var gridStartDate: Date {
