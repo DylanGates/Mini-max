@@ -50,8 +50,8 @@ struct InsightLineView: View {
                 .buttonStyle(.plain)
                 .frame(height: verbose ? nil : 14, alignment: .leading)
             } else {
-                // Loading — pulsing dots
-                Text("· · ·")
+                // Loading — pulsing dots or active tool name
+                Text(engine.currentTool.map { "🔧 \($0)…" } ?? "· · ·")
                     .font(.system(size: 10))
                     .foregroundStyle(Color(white: 0.28))
                     .opacity(pulse ? 0.7 : 0.3)

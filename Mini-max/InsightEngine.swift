@@ -31,17 +31,47 @@ enum InsightError: Error, LocalizedError {
 private struct ClaudeRequest: Encodable {
     let model: String
     let max_tokens: Int
-    let messages: [ClaudeMessage]
+    let messages: [ClaudeMsg]
+    let tools: [MMTool]?
 }
-private struct ClaudeMessage: Codable {
+
+private struct ClaudeMsg: Encodable {
     let role: String
-    let content: String
+    let content: ClaudeMsgContent
 }
+
+private enum ClaudeMsgContent: Encodable {
+    case text(String)
+    case blocks([ClaudeMsgBlock])
+
+    func encode(to encoder: Encoder) throws {
+        switch self {
+        case .text(let s):     try s.encode(to: encoder)
+        case .blocks(let arr): try arr.encode(to: encoder)
+        }
+    }
+}
+
+private struct ClaudeMsgBlock: Encodable {
+    let type: String
+    let tool_use_id: String?
+    let content: String?
+    let id: String?
+    let name: String?
+    let input: [String: String]?
+}
+
 private struct ClaudeResponse: Decodable {
     let content: [ClaudeContent]
+    let stop_reason: String?
 }
+
 private struct ClaudeContent: Decodable {
-    let text: String
+    let type: String
+    let text: String?
+    let id: String?
+    let name: String?
+    let input: [String: String]?
 }
 
 // MARK: - OpenAI-compatible wire types
@@ -71,6 +101,7 @@ final class InsightEngine {
 
     var isLoading  = false
     var lastError: InsightError? = nil
+    var currentTool: String? = nil
 
     // UserDefaults keys
     static let claudeKeyUD   = "minimax.claude.apiKey"
@@ -146,31 +177,70 @@ final class InsightEngine {
     private func callClaude(prompt text: String, verbose: Bool) async throws -> String {
         let key = UserDefaults.standard.string(forKey: Self.claudeKeyUD) ?? ""
         guard !key.isEmpty else { throw InsightError.missingAPIKey }
+        let model = UserDefaults.standard.string(forKey: Self.claudeModelUD) ?? "claude-sonnet-4-5"
 
-        let model = UserDefaults.standard.string(forKey: Self.claudeModelUD)
-                    ?? "claude-sonnet-4-5"
+        var messages: [ClaudeMsg] = [ClaudeMsg(role: "user", content: .text(text))]
+        let maxIter = 3
 
-        let body = ClaudeRequest(
-            model: model,
-            max_tokens: verbose ? 400 : 120,
-            messages: [ClaudeMessage(role: "user", content: text)]
-        )
-        var req = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)
-        req.httpMethod = "POST"
-        req.setValue(key, forHTTPHeaderField: "x-api-key")
-        req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        req.setValue("application/json", forHTTPHeaderField: "content-type")
-        req.httpBody = try? JSONEncoder().encode(body)
+        for _ in 0..<maxIter {
+            let body = ClaudeRequest(
+                model: model,
+                max_tokens: verbose ? 400 : 1024,
+                messages: messages,
+                tools: MinimaxTools.all
+            )
+            var req = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)
+            req.httpMethod = "POST"
+            req.setValue(key,                    forHTTPHeaderField: "x-api-key")
+            req.setValue("2023-06-01",           forHTTPHeaderField: "anthropic-version")
+            req.setValue("application/json",     forHTTPHeaderField: "content-type")
+            req.httpBody = try? JSONEncoder().encode(body)
 
-        let (data, response) = try await URLSession.shared.data(for: req)
-        if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-            throw InsightError.invalidResponse(http.statusCode)
+            let (data, response) = try await URLSession.shared.data(for: req)
+            if let http = response as? HTTPURLResponse, http.statusCode != 200 {
+                throw InsightError.invalidResponse(http.statusCode)
+            }
+            guard let decoded = try? JSONDecoder().decode(ClaudeResponse.self, from: data) else {
+                throw InsightError.decodingError
+            }
+
+            if decoded.stop_reason != "tool_use" {
+                return decoded.content
+                    .compactMap { $0.type == "text" ? $0.text : nil }
+                    .joined(separator: " ")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
+            // Echo assistant turn (text + tool_use blocks)
+            let assistantBlocks = decoded.content.map { c -> ClaudeMsgBlock in
+                if c.type == "tool_use" {
+                    return ClaudeMsgBlock(type: "tool_use", tool_use_id: nil, content: nil,
+                                         id: c.id, name: c.name, input: c.input)
+                } else {
+                    return ClaudeMsgBlock(type: "text", tool_use_id: nil, content: c.text,
+                                         id: nil, name: nil, input: nil)
+                }
+            }
+            messages.append(ClaudeMsg(role: "assistant", content: .blocks(assistantBlocks)))
+
+            // Execute each tool_use block and collect results
+            var resultBlocks: [ClaudeMsgBlock] = []
+            for block in decoded.content where block.type == "tool_use" {
+                guard let toolId = block.id, let toolName = block.name else { continue }
+                currentTool = toolName
+                let result = await ToolEngine.shared.execute(name: toolName, input: block.input ?? [:])
+                resultBlocks.append(ClaudeMsgBlock(type: "tool_result", tool_use_id: toolId,
+                                                   content: result, id: nil, name: nil, input: nil))
+            }
+            currentTool = nil
+            messages.append(ClaudeMsg(role: "user", content: .blocks(resultBlocks)))
         }
-        guard let decoded = try? JSONDecoder().decode(ClaudeResponse.self, from: data),
-              let content = decoded.content.first?.text else {
-            throw InsightError.decodingError
-        }
-        return content
+
+        // Max iterations reached — return last text message if any
+        return messages.compactMap {
+            if case .text(let t) = $0.content { return t }
+            return nil
+        }.last ?? ""
     }
 
     // MARK: - OpenAI-compatible (GPT-4, Ollama, LM Studio, etc.)

@@ -213,6 +213,7 @@ private struct FocusSettingsPane: View {
 
 private struct DataSettingsPane: View {
     @State private var confirmClear: String?
+    private let obsidian = ObsidianStore.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -221,6 +222,30 @@ private struct DataSettingsPane: View {
                 Section("Export") {
                     Button("Export All Data as JSON…") {
                         DataExporter.export()
+                    }
+                }
+
+                Section("Obsidian") {
+                    LabeledContent("Vault") {
+                        HStack {
+                            if let url = obsidian.vaultURL {
+                                Text(url.lastPathComponent)
+                                    .foregroundStyle(.primary)
+                                Button("Change") {
+                                    Task { await obsidian.selectVault() }
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            } else {
+                                Text("No vault selected")
+                                    .foregroundStyle(.secondary)
+                                Button("Choose…") {
+                                    Task { await obsidian.selectVault() }
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                        }
                     }
                 }
 
