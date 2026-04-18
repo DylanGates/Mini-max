@@ -316,12 +316,10 @@ final class InsightEngine {
 
     private func prompt(for tab: NotchTab, verbose: Bool) -> String {
         switch tab {
-        case .focus:    return focusPrompt(verbose: verbose)
-        case .projects: return projectsPrompt(verbose: verbose)
-        case .tasks:    return tasksPrompt(verbose: verbose)
-        case .feed:        return streakPrompt(verbose: verbose)
-        case .learn:    return learnPrompt(verbose: verbose)
-        case .home:     return homePrompt(verbose: verbose)
+        case .home:      return homePrompt(verbose: verbose)
+        case .projects:  return projectsPrompt(verbose: verbose)
+        case .awareness: return learnPrompt(verbose: verbose)
+        case .focus:     return focusPrompt(verbose: verbose)
         }
     }
 
@@ -436,12 +434,10 @@ final class InsightEngine {
 extension NotchTab {
     var cacheKey: String {
         switch self {
-        case .home:     return "home"
-        case .projects: return "projects"
-        case .feed:        return "streak"
-        case .learn:    return "learn"
-        case .tasks:    return "tasks"
-        case .focus:    return "focus"
+        case .home:      return "home"
+        case .projects:  return "projects"
+        case .awareness: return "awareness"
+        case .focus:     return "focus"
         }
     }
 

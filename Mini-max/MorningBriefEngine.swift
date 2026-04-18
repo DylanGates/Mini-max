@@ -51,7 +51,9 @@ final class MorningBriefEngine {
 
     private func fetchAndSummarise() async throws -> [BriefItem] {
         // 1. Fetch HN front page
-        let hnURL = URL(string: "https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=8")!
+        guard let hnURL = URL(string: "https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=8") else {
+            return []
+        }
         let (hnData, _) = try await URLSession.shared.data(from: hnURL)
         guard let hnJSON = try? JSONDecoder().decode(HNResponse.self, from: hnData) else {
             throw BriefError.hnDecodeFailed
@@ -75,7 +77,10 @@ final class MorningBriefEngine {
 
         let body = SimpleClaude(model: model, max_tokens: 200,
                                 messages: [SimpleMsg(role: "user", content: prompt)])
-        var req = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)
+        guard let url = URL(string: "https://api.anthropic.com/v1/messages") else {
+            return []
+        }
+        var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue(key,              forHTTPHeaderField: "x-api-key")
         req.setValue("2023-06-01",     forHTTPHeaderField: "anthropic-version")

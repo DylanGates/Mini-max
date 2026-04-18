@@ -172,13 +172,11 @@ private struct FeedTopicCard: View {
                     .background(RoundedRectangle(cornerRadius: 3).fill(Color(white: 0.09)))
             }
             HStack(spacing: 4) {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 2).fill(Color(white: 0.10))
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(progressColor)
-                            .frame(width: geo.size.width * CGFloat(topic.progress) / 100)
-                    }
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2).fill(Color(white: 0.10))
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(progressColor)
+                        .scaleEffect(x: CGFloat(topic.progress) / 100, y: 1, anchor: .leading)
                 }
                 .frame(height: 3)
                 Text("\(topic.progress)%")

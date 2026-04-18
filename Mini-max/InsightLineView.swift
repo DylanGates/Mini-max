@@ -24,7 +24,7 @@ struct InsightLineView: View {
                             .font(.system(size: 10))
                             .foregroundStyle(Color(white: 0.42))
                             .lineLimit(4)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         if ObsidianStore.shared.vaultURL != nil {
                             HStack {

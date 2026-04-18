@@ -12,7 +12,7 @@ struct LearningPanel: View {
     @State private var newCategory = ""
     @State private var newDays: Set<Int> = []
     @State private var showTodayOnly = false
-    @State private var eyesTrigger = UUID()
+    @Binding var eyesTrigger: UUID
 
     private let accent = Color(red: 0.48, green: 0.70, blue: 0.91)
 
@@ -22,61 +22,55 @@ struct LearningPanel: View {
     }
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            VStack(alignment: .leading, spacing: 0) {
-                header
-                    .padding(.bottom, 10)
+        VStack(alignment: .leading, spacing: 0) {
+            header
+                .padding(.bottom, 10)
 
-                if showingAdd {
-                    addRow
-                        .padding(.bottom, 8)
-                }
-
-                if displayTopics.isEmpty && store.completedTopics.isEmpty {
-                    emptyState
-                } else {
-                    List {
-                        ForEach(displayTopics) { topic in
-                            TopicRow(topic: topic)
-                                .listRowBackground(Color.clear)
-                                .listRowSeparatorTint(Color(white: 0.08))
-                                .listRowInsets(EdgeInsets())
-                        }
-                        .onMove { store.moveActive(fromOffsets: $0, toOffset: $1) }
-
-                        if !store.completedTopics.isEmpty && !showTodayOnly {
-                            Section {
-                                ForEach(store.completedTopics) { topic in
-                                    TopicRow(topic: topic)
-                                        .opacity(0.45)
-                                        .listRowBackground(Color.clear)
-                                        .listRowSeparatorTint(Color(white: 0.06))
-                                        .listRowInsets(EdgeInsets())
-                                }
-                            } header: {
-                                Text("completed")
-                                    .font(.system(size: 8, weight: .medium))
-                                    .foregroundStyle(Color(white: 0.22))
-                                    .textCase(nil)
-                                    .padding(.leading, 10)
-                                    .padding(.vertical, 4)
-                            }
-                            .listSectionSeparator(.hidden)
-                        }
-                    }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
-                }
-
-                InsightLineView(tab: .learn, verbose: true, refreshTrigger: eyesTrigger)
-                    .padding(.top, 4)
+            if showingAdd {
+                addRow
+                    .padding(.bottom, 8)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
-            MiniMaxEyes(size: .small, onTap: { eyesTrigger = UUID() })
-                .padding(.top, 6)
-                .padding(.trailing, 2)
+            if displayTopics.isEmpty && store.completedTopics.isEmpty {
+                emptyState
+            } else {
+                List {
+                    ForEach(displayTopics) { topic in
+                        TopicRow(topic: topic)
+                            .listRowBackground(Color.clear)
+                            .listRowSeparatorTint(Color(white: 0.08))
+                            .listRowInsets(EdgeInsets())
+                    }
+                    .onMove { store.moveActive(fromOffsets: $0, toOffset: $1) }
+
+                    if !store.completedTopics.isEmpty && !showTodayOnly {
+                        Section {
+                            ForEach(store.completedTopics) { topic in
+                                TopicRow(topic: topic)
+                                    .opacity(0.45)
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparatorTint(Color(white: 0.06))
+                                    .listRowInsets(EdgeInsets())
+                            }
+                        } header: {
+                            Text("completed")
+                                .font(.system(size: 8, weight: .medium))
+                                .foregroundStyle(Color(white: 0.22))
+                                .textCase(nil)
+                                .padding(.leading, 10)
+                                .padding(.vertical, 4)
+                        }
+                        .listSectionSeparator(.hidden)
+                    }
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+            }
+
+            InsightLineView(tab: .awareness, verbose: true, refreshTrigger: eyesTrigger)
+                .padding(.top, 4)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     // MARK: - Header
@@ -319,12 +313,10 @@ private struct TopicRow: View {
 
                 // Progress track
                 HStack(spacing: 6) {
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color(white: 0.1)).frame(height: 4)
-                            Capsule().fill(borderAccent)
-                                .frame(width: geo.size.width * CGFloat(topic.progress) / 100, height: 4)
-                        }
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color(white: 0.1))
+                        Capsule().fill(borderAccent)
+                            .scaleEffect(x: CGFloat(topic.progress) / 100, y: 1, anchor: .leading)
                     }
                     .frame(height: 4)
 
