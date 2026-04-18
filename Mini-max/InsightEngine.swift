@@ -319,7 +319,7 @@ final class InsightEngine {
         case .focus:    return focusPrompt(verbose: verbose)
         case .projects: return projectsPrompt(verbose: verbose)
         case .tasks:    return tasksPrompt(verbose: verbose)
-        case .streak:   return streakPrompt(verbose: verbose)
+        case .feed:        return streakPrompt(verbose: verbose)
         case .learn:    return learnPrompt(verbose: verbose)
         case .home:     return homePrompt(verbose: verbose)
         }
@@ -438,7 +438,7 @@ extension NotchTab {
         switch self {
         case .home:     return "home"
         case .projects: return "projects"
-        case .streak:   return "streak"
+        case .feed:        return "streak"
         case .learn:    return "learn"
         case .tasks:    return "tasks"
         case .focus:    return "focus"

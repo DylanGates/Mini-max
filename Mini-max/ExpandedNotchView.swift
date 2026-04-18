@@ -11,7 +11,18 @@ final class NotchDisplayState {
 
 // MARK: - Active Tab
 
-enum NotchTab { case home, projects, streak, learn, tasks, focus }
+enum NotchTab: String, CaseIterable {
+    case home, projects, awareness, focus
+
+    var icon: String {
+        switch self {
+        case .home:      return "house.fill"
+        case .projects:  return "folder.fill"
+        case .awareness: return "eye.fill"
+        case .focus:     return "timer"
+        }
+    }
+}
 
 // MARK: - Shell
 
@@ -90,8 +101,8 @@ struct ExpandedNotchContent: View {
                     }
                     .frame(maxHeight: .infinity)
 
-                case .streak:
-                    StreakPanel()
+                case .feed:
+                    FeedPanel()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 case .learn:
@@ -171,7 +182,7 @@ private struct NotchHeaderBar: View {
             HStack(spacing: 2) {
                 TabPillButton(symbol: "house.fill",   label: "Home",     isSelected: activeTab == .home)     { activeTab = .home }
                 TabPillButton(symbol: "folder.fill",  label: "Projects", isSelected: activeTab == .projects) { activeTab = .projects }
-                TabPillButton(symbol: "flame.fill",   label: "Streak",   isSelected: activeTab == .streak)   { activeTab = .streak }
+                TabPillButton(symbol: "newspaper.fill", label: "Feed",     isSelected: activeTab == .feed)      { activeTab = .feed }
                 TabPillButton(symbol: "book.fill",    label: "Learn",    isSelected: activeTab == .learn)    { activeTab = .learn }
                 TabPillButton(symbol: "checklist",    label: "Tasks",    isSelected: activeTab == .tasks)    { activeTab = .tasks }
                 TabPillButton(symbol: "timer",        label: "Focus",    isSelected: activeTab == .focus)    { activeTab = .focus }
