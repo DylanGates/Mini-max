@@ -47,4 +47,18 @@ final class ObsidianStore {
             }
         }
     }
+
+    func saveNote(title: String, content: String) async {
+        guard let vault = vaultURL else { return }
+        _ = vault.startAccessingSecurityScopedResource()
+        let tf = DateFormatter(); tf.dateFormat = "HH-mm"
+        let filename = "MiniMax – \(title) – \(tf.string(from: Date())).md"
+        let noteURL = vault.appendingPathComponent(filename)
+        let body = "# \(title)\n\n\(content)"
+        do {
+            try body.write(to: noteURL, atomically: true, encoding: .utf8)
+        } catch {
+            print("[ObsidianStore] saveNote error: \(error)")
+        }
+    }
 }

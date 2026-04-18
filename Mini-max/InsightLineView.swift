@@ -26,6 +26,22 @@ struct InsightLineView: View {
                             .lineLimit(4)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                        if ObsidianStore.shared.vaultURL != nil {
+                            HStack {
+                                Spacer()
+                                Button("Save") {
+                                    Task {
+                                        await ObsidianStore.shared.saveNote(
+                                            title: "\(tab.cacheKey.capitalized) Insight",
+                                            content: text
+                                        )
+                                    }
+                                }
+                                .font(.system(size: 9))
+                                .foregroundStyle(Color(white: 0.4))
+                                .buttonStyle(.plain)
+                            }
+                        }
                     }
                 } else {
                     Text(text)
