@@ -113,7 +113,9 @@ final class GitHubContributionStore {
 
     private func fetchContributions(username: String, token: String) async throws -> [String: DayContribution] {
         let cal = Calendar(identifier: .gregorian)
-        let from = cal.date(byAdding: .day, value: -(16 * 7), to: Date())!
+        guard let from = cal.date(byAdding: .day, value: -(16 * 7), to: Date()) else {
+            return [:]
+        }
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
 
