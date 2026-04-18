@@ -5,6 +5,7 @@ enum Nudge: Equatable {
     case streakAtRisk
     case overdueTask(Int)
     case endOfDay
+    case morningBrief
 }
 
 @Observable
@@ -12,99 +13,62 @@ enum Nudge: Equatable {
 final class NudgeEngine {
     static let shared = NudgeEngine()
 
-    var activeNudge: Nudge? = nil
+    var activeNudge: Nudge?
 
-    private var dismissedAt: [String: Date] = [:]
     private var timer: Timer?
+    private var cooldowns: [String: Date] = [:]
 
     private init() {
-        startTimer()
-    }
-
-    @MainActor deinit {
-        timer?.invalidate()
-    }
-
-    private func startTimer() {
-        // Evaluate immediately, then every 60s
-        Task { await evaluate() }
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            Task { await self?.evaluate() }
+            Task { @MainActor in self?.evaluate() }
         }
     }
 
     func dismiss() {
-        guard let n = activeNudge else { return }
-        let key = keyFor(n)
-        dismissedAt[key] = Date()
+        guard let nudge = activeNudge else { return }
+        let key = cooldownKey(for: nudge)
+        let window: TimeInterval = nudge == .endOfDay ? 23 * 3600 : 3600
+        cooldowns[key] = Date().addingTimeInterval(window)
         activeNudge = nil
     }
 
-    private func keyFor(_ nudge: Nudge) -> String {
-        switch nudge {
-        case .streakAtRisk: return "streakAtRisk"
-        case .overdueTask:  return "overdueTask"
-        case .endOfDay:     return "endOfDay"
-        }
-    }
-
-    private func isCooledDown(_ key: String, hours: Int) -> Bool {
-        guard let last = dismissedAt[key] else { return true }
-        return Date().timeIntervalSince(last) > TimeInterval(hours * 3600)
-    }
-
-    func evaluate() async {
+    private func evaluate() {
+        let now = Date()
         let cal = Calendar.current
-        let comps = cal.dateComponents([.hour, .minute], from: Date())
-        let hour = comps.hour ?? 0
-        let minute = comps.minute ?? 0
+        let hour = cal.component(.hour, from: now)
+        let min  = cal.component(.minute, from: now)
 
-        // 1) End of day: 17:30 - 17:34
-        if hour == 17 && (30...34).contains(minute) {
-            let key = "endOfDay"
-            if isCooledDown(key, hours: 23) {
-                activeNudge = .endOfDay
-                return
-            }
+        // endOfDay: 17:30–17:34, first-match priority
+        if hour == 17, (30...34).contains(min), !isCoolingDown(.endOfDay) {
+            activeNudge = .endOfDay; return
         }
 
-        // 2) Overdue tasks
-        let overdueCount = TaskStore.shared.pending.filter { $0.urgency == .overdue }.count
-        if overdueCount > 0 {
-            let key = "overdueTask"
-            if isCooledDown(key, hours: 1) {
-                activeNudge = .overdueTask(count: overdueCount)
-                return
-            }
+        // overdueTask
+        let overdue = TaskStore.shared.tasks.filter {
+            guard let due = $0.deadline else { return false }
+            return due < now && !$0.isCompleted
+        }.count
+        if overdue > 0, !isCoolingDown(.overdueTask(overdue)) {
+            activeNudge = .overdueTask(overdue); return
         }
 
-        // 3) Streak at risk: 18:00 - 22:59 and 0 commits today
-        if (18...22).contains(hour) {
-            let commits = todayCommits()
-            if commits == 0 {
-                let key = "streakAtRisk"
-                if isCooledDown(key, hours: 1) {
-                    activeNudge = .streakAtRisk(daysLeft: 1)
-                    return
-                }
-            }
+        // streakAtRisk: 18:00–22:59
+        if (18...22).contains(hour), !isCoolingDown(.streakAtRisk) {
+            activeNudge = .streakAtRisk
         }
-
-        // No match
-        activeNudge = nil
     }
 
-    private func todayCommits() -> Int {
-        let contributions = GitHubContributionStore.shared.contributionsByUser
-        if contributions.isEmpty { return 0 }
-        let df = DateFormatter()
-        df.dateFormat = "yyyy-MM-dd"
-        df.timeZone = TimeZone(identifier: "UTC")
-        let todayKey = df.string(from: Date())
-        var total = 0
-        for (_, map) in contributions {
-            total += map[todayKey]?.count ?? 0
+    private func isCoolingDown(_ nudge: Nudge) -> Bool {
+        guard let until = cooldowns[cooldownKey(for: nudge)] else { return false }
+        return Date() < until
+    }
+
+    private func cooldownKey(for nudge: Nudge) -> String {
+        switch nudge {
+        case .streakAtRisk:       return "streakAtRisk"
+        case .overdueTask:        return "overdueTask"
+        case .endOfDay:           return "endOfDay"
+        case .morningBrief:       return "morningBrief"
         }
-        return total
     }
 }
