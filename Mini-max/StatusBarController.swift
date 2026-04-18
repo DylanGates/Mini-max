@@ -94,29 +94,27 @@ final class StatusBarController {
     private func makeEyesImage() -> NSImage {
         let r: CGFloat = 5          // circle radius
         let bridge: CGFloat = r / 2 // 2.5pt — half the radius
-        let gap: CGFloat = 6       // space between the two circle edges
+        let gap: CGFloat = 6        // space between the two circle edges
         let d = r * 2               // diameter = 10
         let w = d + gap + d         // total width = 26
         let h = d                   // total height = 10
 
         let size = NSSize(width: w, height: h)
-        let image = NSImage(size: size)
-        image.lockFocus()
+        return NSImage(size: size, flipped: false) { rect in
+            NSColor.white.withAlphaComponent(0.82).setFill()
 
-        NSColor.white.withAlphaComponent(0.82).setFill()
+            // Left circle
+            NSBezierPath(ovalIn: NSRect(x: 0, y: 0, width: d, height: d)).fill()
 
-        // Left circle
-        NSBezierPath(ovalIn: NSRect(x: 0, y: 0, width: d, height: d)).fill()
+            // Right circle
+            NSBezierPath(ovalIn: NSRect(x: d + gap, y: 0, width: d, height: d)).fill()
 
-        // Right circle
-        NSBezierPath(ovalIn: NSRect(x: d + gap, y: 0, width: d, height: d)).fill()
-
-        // Bridge — centered vertically, spanning between the two circle centers
-        let bridgeY = (h - bridge) / 2
-        NSBezierPath(rect: NSRect(x: r, y: bridgeY, width: gap + d, height: bridge)).fill()
-
-        image.unlockFocus()
-        return image
+            // Bridge — centered vertically, spanning between the two circle centers
+            let bridgeY = (h - bridge) / 2
+            NSBezierPath(rect: NSRect(x: r, y: bridgeY, width: gap + d, height: bridge)).fill()
+            
+            return true
+        }
     }
 
     // MARK: - Data helpers
