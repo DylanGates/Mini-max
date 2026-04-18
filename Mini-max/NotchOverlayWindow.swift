@@ -23,11 +23,15 @@ final class NotchOverlayWindow: NSPanel {
         hasShadow = false
         hidesOnDeactivate = false
         ignoresMouseEvents = false
-        // Allow text fields to receive keyboard input when user clicks inside
         acceptsMouseMovedEvents = true
 
         let hostingView = NSHostingView(rootView: NotchShellView(state: displayState))
         hostingView.layer?.backgroundColor = .clear
+        hostingView.autoresizingMask = [.width, .height]
+        
+        if #available(macOS 13.0, *) {
+            hostingView.sizingOptions = []
+        }
         contentView = hostingView
     }
 
@@ -36,7 +40,6 @@ final class NotchOverlayWindow: NSPanel {
     /// Extra width on each side for the outer gutter blend curves.
     static let gutterWidth: CGFloat = 10
 
-    /// Position the overlay to cover the notch + extend below it + gutter on each side.
     func positionOver(notchRect: CGRect) {
         let g = NotchOverlayWindow.gutterWidth
         let extendedRect = CGRect(
@@ -46,61 +49,55 @@ final class NotchOverlayWindow: NSPanel {
             height: notchRect.height + NotchOverlayWindow.bottomExtension
         )
         collapsedRect = extendedRect
-        setFrame(extendedRect, display: true)
+        setFrame(extendedRect, display: false)
         orderFrontRegardless()
-        addTrackingToContentView()
+        addTracking(for: extendedRect.size)
     }
 
-    /// Expand the overlay to fill the notch area with content (640 × 230).
     func expand(on screen: NSScreen) {
+        guard !displayState.isExpanded else { return }
         let expandedWidth: CGFloat = 580
         let expandedHeight: CGFloat = 212
         let x = screen.frame.midX - expandedWidth / 2
         let y = screen.frame.maxY - expandedHeight
         let expandedFrame = CGRect(x: x, y: y, width: expandedWidth, height: expandedHeight)
 
+        setFrame(expandedFrame, display: false)
         displayState.isExpanded = true
-
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.3
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            animator().setFrame(expandedFrame, display: true)
-        } completionHandler: {
-            self.addTrackingToContentView()
-        }
+        // Use explicit size — view.bounds is stale after display:false (layout pass deferred)
+        addTracking(for: CGSize(width: expandedWidth, height: expandedHeight))
     }
 
-    /// Collapse back to the pill over the hardware notch.
     func collapse() {
         guard collapsedRect != .zero else { return }
         displayState.isExpanded = false
-        resignKey()  // Release keyboard focus so the previous app can type again
+        resignKey()
 
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.2
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            animator().setFrame(collapsedRect, display: true)
-        } completionHandler: {
-            self.addTrackingToContentView()
+        // Wait for the close spring (response:0.45, df:1.0) to settle before snapping
+        // the frame — a mid-animation frame change triggers the constraint loop.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) { [weak self] in
+            guard let self else { return }
+            self.setFrame(self.collapsedRect, display: false)
+            self.addTracking(for: self.collapsedRect.size)
         }
     }
 
-    private func addTrackingToContentView() {
+    /// Replaces all tracking areas on the content view with one covering `size`.
+    /// Takes an explicit size because view.bounds can be stale after setFrame(..., display:false).
+    private func addTracking(for size: CGSize) {
         guard let view = contentView else { return }
         view.trackingAreas.forEach { view.removeTrackingArea($0) }
         let area = NSTrackingArea(
-            rect: view.bounds,
-            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            rect: CGRect(origin: .zero, size: size),
+            options: [.mouseEnteredAndExited, .activeAlways],
             owner: self,
             userInfo: nil
         )
         view.addTrackingArea(area)
     }
 
-    // Allow text fields and buttons to receive keyboard events
     override var canBecomeKey: Bool { true }
 
-    // Activate on click so text fields work immediately
     override func mouseDown(with event: NSEvent) {
         if displayState.isExpanded {
             NSApp.activate(ignoringOtherApps: true)

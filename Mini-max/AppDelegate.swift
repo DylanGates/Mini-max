@@ -37,11 +37,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self, let screen = NSScreen.builtIn else { return }
             cancelHideTimer()
             overlayWindow?.expand(on: screen)
-            viewModel.showPanel()
         }
 
         overlayWindow?.onMouseExited = { [weak self] in
-            self?.scheduleHide(after: 0.4)
+            self?.scheduleHide(after: 0.6)
+        }
+
+        notchWindow?.onMouseEntered = { [weak self] in
+            self?.cancelHideTimer()
+        }
+
+        notchWindow?.onMouseExited = { [weak self] in
+            self?.scheduleHide(after: 0.6)
         }
     }
 
