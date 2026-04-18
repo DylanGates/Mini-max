@@ -90,48 +90,25 @@ struct ExpandedNotchContent: View {
                         CalendarPanel()
                             .frame(width: 200)
                     }
-                    .frame(maxHeight: .infinity)
-
                 case .projects:
-                    HStack(alignment: .top, spacing: 12) {
-                        ProjectsPanel()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        CalendarPanel()
-                            .frame(width: 200)
-                    }
-                    .frame(maxHeight: .infinity)
-
-                case .feed:
-                    FeedPanel()
+                    ProjectsPanel()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                case .learn:
-                    LearningPanel()
+                case .awareness:
+                    FeedLearnPanel()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                case .tasks:
-                    TasksPanel()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-
                 case .focus:
-                    FocusPanel()
+                    TaskFocusPanel()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .transition(
-                .scale(scale: 0.93, anchor: .top)
-                .combined(with: .opacity)
-            )
-            .id(activeTab)
         }
         .padding(.horizontal, 16)
         .padding(.top, 6)
         .padding(.bottom, 10)
-        .animation(.smooth(duration: 0.22), value: activeTab)
     }
 }
 
-// MARK: - Header Bar
+// MARK: - Header Bar (Top Menu Bar)
 
 private struct NotchHeaderBar: View {
     @Binding var activeTab: NotchTab
@@ -161,45 +138,12 @@ private struct NotchHeaderBar: View {
         return streak
     }
 
-    // Pomodoro countdown label e.g. "18:35" or "–"
     private var pomodoroLabel: String {
         guard !pomodoro.phase.isIdle else { return "–" }
         let r = pomodoro.phase.remaining
         let m = Int(r) / 60
         let s = Int(r) % 60
         return String(format: "%d:%02d", m, s)
-    }
-
-    // Today's event count
-    private var eventCount: Int { calendar.events.count }
-
-    // Pending task count
-    private var pendingTasks: Int { tasks.pending.count }
-
-    var body: some View {
-        HStack(spacing: 0) {
-            // Tab row — no outer capsule, each tab styles itself (Notchy pattern)
-            HStack(spacing: 2) {
-                TabPillButton(symbol: "house.fill",   label: "Home",     isSelected: activeTab == .home)     { activeTab = .home }
-                TabPillButton(symbol: "folder.fill",  label: "Projects", isSelected: activeTab == .projects) { activeTab = .projects }
-                TabPillButton(symbol: "newspaper.fill", label: "Feed",     isSelected: activeTab == .feed)      { activeTab = .feed }
-                TabPillButton(symbol: "book.fill",    label: "Learn",    isSelected: activeTab == .learn)    { activeTab = .learn }
-                TabPillButton(symbol: "checklist",    label: "Tasks",    isSelected: activeTab == .tasks)    { activeTab = .tasks }
-                TabPillButton(symbol: "timer",        label: "Focus",    isSelected: activeTab == .focus)    { activeTab = .focus }
-            }
-
-            Spacer()
-
-            // Right: status pills + settings + battery (gap=6 per design)
-            HStack(spacing: 6) {
-                StatusBadgePill(symbol: "hourglass",    label: pomodoroLabel,      iconSize: 10, borderColor: Color(red: 0.129, green: 0.588, blue: 0.953))
-                StatusBadgePill(symbol: "flame.fill",   label: "\(githubStreak)",  iconSize: 8,  borderColor: Color(red: 0.800, green: 0.216, blue: 0.216))
-                StatusBadgePill(symbol: "calendar",     label: "\(eventCount)",    iconSize: 8,  borderColor: Color(red: 0.118, green: 0.843, blue: 0.376))
-                StatusBadgePill(symbol: "checklist",    label: "\(pendingTasks)",  iconSize: 8,  borderColor: Color(red: 0.843, green: 0.518, blue: 0.118))
-                NotchSettingsButton()
-                NotchBatteryView(battery: battery)
-            }
-        }
     }
 }
 
@@ -515,176 +459,248 @@ private struct SummaryChip: View {
 private struct ProjectsPanel: View {
     private let store = ProjectStore.shared
     @State private var showingAdd = false
-    @State private var newName = ""
-    @State private var newLanguage = ""
-    @State private var newPath = ""
-    @State private var eyesTrigger = UUID()
-
-    private let accent = Color(red: 0.48, green: 0.70, blue: 0.91)
-    private let green  = Color(red: 0.27, green: 0.75, blue: 0.43)
+    @State private var selectedProject: Project? = nil
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            VStack(alignment: .leading, spacing: 0) {
-                header
-                    .padding(.bottom, 10)
+        HStack(alignment: .top, spacing: 0) {
+            ZStack(alignment: .bottom) {
+                VStack(spacing: 0) {
+                    ProjectsHeader(showingAdd: $showingAdd)
+                        .padding(.bottom, 12)
+                        .padding(.trailing, 16)
 
-                if showingAdd {
-                    addForm
-                        .padding(.bottom, 8)
-                }
-
-                if store.projects.isEmpty {
-                    emptyState
-                } else {
                     ScrollView(showsIndicators: false) {
-                        VStack(spacing: 0) {
-                            ForEach(store.projects) { project in
-                                ProjectRow(project: project)
-                                if project.id != store.projects.last?.id {
-                                    Divider()
-                                        .background(Color(white: 0.1))
-                                        .padding(.leading, 10)
+                        VStack(spacing: 10) {
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                                ForEach(store.projects) { project in
+                                    ProjectCard(project: project) {
+                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                            selectedProject = project
+                                        }
+                                    }
                                 }
                             }
+
+                            if showingAdd {
+                                AddProjectForm(isShowing: $showingAdd)
+                                    .transition(.scale(scale: 0.95).combined(with: .opacity))
+                            }
                         }
+                        .padding(.trailing, 16)
+                        .padding(.bottom, 14)
                     }
                 }
 
-                InsightLineView(tab: .projects, verbose: true, refreshTrigger: eyesTrigger)
-                    .padding(.top, 4)
+                if let project = selectedProject {
+                    ObsidianNotesPanel(project: project) {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                            selectedProject = nil
+                        }
+                    }
+                    .transition(.move(edge: .bottom))
+                    .zIndex(10)
+                }
             }
+            .frame(maxWidth: .infinity)
+            .overlay(
+                Rectangle()
+                    .fill(.white.opacity(0.06))
+                    .frame(width: 0.5)
+                    .padding(.vertical, 8),
+                alignment: .trailing
+            )
 
-            MiniMaxEyes(size: .small, onTap: { eyesTrigger = UUID() })
-                .padding(.top, 6)
-                .padding(.trailing, 2)
+            VStack(alignment: .leading, spacing: 12) {
+                GitHubHeatmap()
+                GitHubStreakBlock()
+                Spacer()
+            }
+            .padding(.leading, 16)
+            .padding(.trailing, 12)
+            .frame(width: 210)
         }
+        .padding(.leading, 12)
+        .background(Color(red: 13/255, green: 13/255, blue: 13/255))
     }
+}
 
-    // MARK: Header
+private struct ProjectsHeader: View {
+    @Binding var showingAdd: Bool
 
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 0) {
-            Text("Projects")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white)
-
-            if !store.projects.isEmpty {
-                Text(" · \(store.projects.count)")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color(white: 0.32))
+    var body: some View {
+        HStack(alignment: .center) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text("Projects")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.95))
+                
+                if !ProjectStore.shared.projects.isEmpty {
+                    Text("\(ProjectStore.shared.projects.count)")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(.white.opacity(0.06)))
+                        .foregroundStyle(.white.opacity(0.35))
+                }
             }
 
             Spacer()
 
-            // Total time today
-            let todaySessions = store.projects.map(\.sessionsToday).reduce(0, +)
-            if todaySessions > 0 {
-                Text("\(todaySessions) sessions today")
-                    .font(.system(size: 9))
-                    .foregroundStyle(accent.opacity(0.7))
-                    .padding(.trailing, 8)
-            }
-
-            Button { showingAdd.toggle() } label: {
-                Image(systemName: showingAdd ? "xmark" : "plus")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(Color(white: 0.45))
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    // MARK: Add Form
-
-    private var addForm: some View {
-        VStack(spacing: 5) {
-            HStack(spacing: 6) {
-                Rectangle()
-                    .fill(green.opacity(0.5))
-                    .frame(width: 2)
-                    .cornerRadius(1)
-
-                TextField("Project name", text: $newName)
-                    .font(.system(size: 11))
-                    .textFieldStyle(.plain)
-                    .foregroundStyle(.white)
-
-                TextField("lang", text: $newLanguage)
-                    .font(.system(size: 10))
-                    .textFieldStyle(.plain)
-                    .foregroundStyle(Color(white: 0.4))
-                    .frame(width: 48)
-            }
-
-            HStack(spacing: 6) {
-                // Folder picker — opens NSOpenPanel
+            HStack(spacing: 8) {
                 Button {
-                    let panel = NSOpenPanel()
-                    panel.canChooseDirectories = true
-                    panel.canChooseFiles = false
-                    panel.allowsMultipleSelection = false
-                    panel.prompt = "Select"
-                    panel.title = "Choose project folder"
-                    if panel.runModal() == .OK {
-                        newPath = panel.url?.path ?? ""
-                        // Auto-fill name from folder name if still empty
-                        if newName.isEmpty, let folderName = panel.url?.lastPathComponent {
-                            newName = folderName
-                        }
+                    withAnimation(.spring(duration: 0.3)) {
+                        showingAdd.toggle()
                     }
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: "folder.badge.plus")
-                            .font(.system(size: 9))
-                        Text(newPath.isEmpty ? "Browse…" : URL(fileURLWithPath: newPath).lastPathComponent)
-                            .font(.system(size: 9))
-                            .lineLimit(1)
+                        Image(systemName: "plus")
+                            .font(.system(size: 9, weight: .black))
+                        Text("Add")
+                            .font(.system(size: 10, weight: .bold))
                     }
-                    .foregroundStyle(newPath.isEmpty ? Color(white: 0.35) : green.opacity(0.8))
-                    .padding(.horizontal, 7)
+                    .foregroundStyle(.white.opacity(0.85))
                     .padding(.vertical, 4)
-                    .background(RoundedRectangle(cornerRadius: 5).fill(Color(white: 0.08)))
+                    .padding(.horizontal, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(.white.opacity(0.08))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(.white.opacity(0.12), lineWidth: 0.5)
+                            )
+                    )
                 }
                 .buttonStyle(.plain)
 
-                Spacer()
-
-                Button(action: commitAdd) {
-                    Image(systemName: "return")
+                Button { } label: {
+                    Image(systemName: "slider.horizontal.3")
                         .font(.system(size: 10))
-                        .foregroundStyle(newName.isEmpty ? Color(white: 0.25) : accent)
+                        .foregroundStyle(.white.opacity(0.40))
+                        .frame(width: 24, height: 24)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(.white.opacity(0.05))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(.white.opacity(0.10), lineWidth: 0.5)
+                                )
+                        )
                 }
                 .buttonStyle(.plain)
-                .disabled(newName.isEmpty)
             }
         }
-        .padding(.vertical, 7)
-        .padding(.horizontal, 8)
-        .background(RoundedRectangle(cornerRadius: 6).fill(Color(white: 0.07)))
+    }
+}
+
+private struct ProjectCard: View {
+    let project: Project
+    let onTap: () -> Void
+    @State private var gitStats = ProjectGitStats()
+    private let pomodoro = PomodoroManager.shared
+
+    var isActive: Bool {
+        ProjectStore.shared.active?.id == project.id
     }
 
-    // MARK: Empty
-
-    private var emptyState: some View {
-        VStack(spacing: 5) {
-            Image(systemName: "folder.badge.plus")
-                .font(.system(size: 16))
-                .foregroundStyle(Color(white: 0.2))
-            Text("No projects yet")
-                .font(.system(size: 10))
-                .foregroundStyle(Color(white: 0.25))
+    var phaseColor: Color {
+        switch project.phase {
+        case .planning: return Color(red: 251/255, green: 191/255, blue: 36/255)
+        case .building: return Color(red: 99/255, green: 102/255, blue: 241/255)
+        case .testing:  return Color(white: 0.70)
+        case .shipping: return Color(red: 239/255, green: 68/255, blue: 68/255)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func commitAdd() {
-        guard !newName.isEmpty else { showingAdd = false; return }
-        store.add(name: newName, language: newLanguage, path: newPath)
-        newName = ""
-        newLanguage = ""
-        newPath = ""
-        showingAdd = false
+    var body: some View {
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                Rectangle()
+                    .fill(phaseColor.gradient)
+                    .frame(height: max(4, 60 * project.progress))
+                    .clipShape(Capsule())
+                    .shadow(color: phaseColor.opacity(0.4), radius: 4, x: 0, y: 0)
+            }
+            .frame(width: 3.5, height: 60)
+            .background(Capsule().fill(.white.opacity(0.05)))
+            .padding(.trailing, 10)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(project.name)
+                            .font(.system(size: 11.5, weight: .black))
+                            .foregroundStyle(.white.opacity(0.95))
+                            .lineLimit(1)
+                        
+                        Text(project.subtitle.isEmpty ? "no description" : project.subtitle)
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.35))
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    PhaseBadge(phase: project.phase, color: phaseColor)
+                }
+
+                Spacer(minLength: 0)
+
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        MilestoneRow(total: project.milestonesTotal, completed: project.milestonesCompleted)
+                        
+                        HStack(spacing: 4) {
+                            if let deadline = project.deadline {
+                                let days = Int(deadline.timeIntervalSinceNow / 86400)
+                                Text("\(days)d")
+                                    .foregroundStyle(deadlineColor(days))
+                            }
+                            Text("\(Int(project.progress * 100))%")
+                                .foregroundStyle(.white.opacity(0.5))
+                        }
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    }
+                    
+                    Spacer()
+                    
+                    CommitSparkline(values: gitStats.sparkline, color: phaseColor)
+                        .scaleEffect(0.8, anchor: .bottomTrailing)
+                }
+            }
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 10)
+        .frame(height: 84)
+        .background {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(LinearGradient(colors: [Color(white: 0.11), Color(white: 0.07)], startPoint: .top, endPoint: .bottom))
+                
+                if isActive {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(phaseColor.opacity(0.05))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(phaseColor.opacity(0.4), lineWidth: 1.2)
+                        )
+                        .shadow(color: phaseColor.opacity(0.12), radius: 6, x: 0, y: 0)
+                }
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(.white.opacity(0.08), lineWidth: 0.5)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture { onTap() }
+        .task {
+            gitStats = await fetchGitStats(path: project.path)
+        }
+    }
+
+    func deadlineColor(_ days: Int) -> Color {
+        if days < 5 { return Color(red: 248/255, green: 113/255, blue: 113/255) }
+        if days < 14 { return Color(red: 251/255, green: 191/255, blue: 36/255) }
+        return .white.opacity(0.35)
     }
 }
 
@@ -692,12 +708,12 @@ private struct ProjectsPanel: View {
 
 struct ProjectGitStats {
     var weeklyCommits: Int = 0
-    var lastCommitAge: String = ""   // e.g. "3h ago"
+    var lastCommitAge: String = ""
     var branch: String = ""
     var isGitRepo: Bool = false
+    var sparkline: [Int] = Array(repeating: 0, count: 7)
 }
 
-/// Fetches git stats for a project path asynchronously.
 private func fetchGitStats(path: String) async -> ProjectGitStats {
     guard !path.isEmpty else { return ProjectGitStats() }
 
@@ -723,11 +739,19 @@ private func fetchGitStats(path: String) async -> ProjectGitStats {
     let lastAge  = run(["log", "-1", "--format=%cr"])
     let branch   = run(["rev-parse", "--abbrev-ref", "HEAD"])
 
+    var sparkline: [Int] = Array(repeating: 0, count: 7)
+    for i in 0..<7 {
+        let daysAgo = 6 - i
+        let raw = run(["log", "--oneline", "--after=\(daysAgo + 1) days ago", "--before=\(daysAgo) days ago"])
+        sparkline[i] = raw.isEmpty ? 0 : raw.components(separatedBy: "\n").count
+    }
+
     return ProjectGitStats(
         weeklyCommits: weekly,
         lastCommitAge: lastAge,
         branch: branch,
-        isGitRepo: true
+        isGitRepo: true,
+        sparkline: sparkline
     )
 }
 
@@ -870,6 +894,253 @@ private struct ProjectRow: View {
         .task(id: project.id) {
             guard !project.path.isEmpty else { return }
             gitStats = await fetchGitStats(path: project.path)
+        }
+    }
+}
+
+// MARK: - Project Card
+
+private struct ProjectCard: View {
+    let project: Project
+    @State private var gitStats = ProjectGitStats()
+    private let pomodoro = PomodoroManager.shared
+    private let accent   = Color(red: 0.48, green: 0.70, blue: 0.91)
+    private let tasks    = TaskStore.shared
+
+    private var borderColor: Color? {
+        if let dl = project.deadline, dl.timeIntervalSinceNow < 86400 {
+            return Color(red: 0.95, green: 0.30, blue: 0.25)
+        }
+        if case .focus = pomodoro.phase, ProjectStore.shared.active?.id == project.id {
+            return Color(red: 0.98, green: 0.58, blue: 0.20)
+        }
+        return nil
+    }
+
+    private var activityScore: Double {
+        let sessionScore = min(Double(project.sessionsToday) / 4.0, 1.0) * 0.40
+        let commitScore  = min(Double(gitStats.weeklyCommits) / 10.0, 1.0) * 0.30
+        let recencyScore: Double = gitStats.lastCommitAge.isEmpty ? 0 : 0.20
+        let completedToday = tasks.completed.filter {
+            Calendar.current.isDateInToday($0.completedAt ?? .distantPast)
+        }.count
+        let taskScore = min(Double(completedToday) / 3.0, 1.0) * 0.10
+        return sessionScore + commitScore + recencyScore + taskScore
+    }
+
+    private var progressColor: Color {
+        switch activityScore {
+        case 0..<0.3:   return Color(red: 0.91, green: 0.32, blue: 0.27)
+        case 0.3..<0.6: return Color(red: 1.0,  green: 0.62, blue: 0.04)
+        default:        return Color(red: 0.27, green: 0.75, blue: 0.43)
+        }
+    }
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            if let bc = borderColor {
+                bc.frame(width: 2).cornerRadius(1)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                // Row 1: name + lang badge
+                HStack(spacing: 4) {
+                    Text(project.name)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if !project.language.isEmpty {
+                        Text(project.language)
+                            .font(.system(size: 8, weight: .medium))
+                            .foregroundStyle(accent.opacity(0.8))
+                            .padding(.horizontal, 4).padding(.vertical, 2)
+                            .background(RoundedRectangle(cornerRadius: 3).fill(accent.opacity(0.1)))
+                    }
+                }
+                // Row 2: sessions + sparkline
+                HStack(spacing: 4) {
+                    Text("\(project.sessionsToday) sessions")
+                        .font(.system(size: 9))
+                        .foregroundStyle(accent.opacity(0.7))
+                    Spacer()
+                    SparklineView(values: gitStats.sparkline)
+                }
+                // Row 3: activity bar
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 1.5).fill(Color(white: 0.10)).frame(height: 3)
+                        RoundedRectangle(cornerRadius: 1.5)
+                            .fill(progressColor)
+                            .frame(width: max(4, geo.size.width * activityScore), height: 3)
+                    }
+                }
+                .frame(height: 3)
+                // Row 4: last commit age
+                if gitStats.isGitRepo, !gitStats.lastCommitAge.isEmpty {
+                    Text(gitStats.lastCommitAge)
+                        .font(.system(size: 9))
+                        .foregroundStyle(Color(white: 0.35))
+                }
+            }
+            .padding(8)
+        }
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color(white: 0.07)))
+        .task { gitStats = await fetchGitStats(path: project.path) }
+    }
+}
+
+// MARK: - Sparkline
+
+private struct SparklineView: View {
+    let values: [Int]
+
+    var body: some View {
+        if values.isEmpty { return AnyView(EmptyView()) }
+        let maxVal = max(values.max() ?? 0, 1)
+        return AnyView(
+            HStack(alignment: .bottom, spacing: 1.5) {
+                ForEach(0..<values.count, id: \.self) { i in
+                    let v = values[i]
+                    let norm = CGFloat(v) / CGFloat(maxVal)
+                    let h = v == 0 ? 3.0 : max(3.0, 12.0 * norm)
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(v == 0
+                              ? Color(white: 0.12)
+                              : Color(red: 0.98, green: 0.58, blue: 0.20).opacity(0.6 + 0.4 * norm))
+                        .frame(width: 3, height: h)
+                }
+            }
+        )
+    }
+}
+
+// MARK: - Projects Stats Column
+
+private struct ProjectsStatsColumn: View {
+    private let contributions = GitHubContributionStore.shared
+
+    private var streakInfo: (current: Int, longest: Int, username: String) {
+        guard let (username, byDate) = contributions.contributionsByUser.first else {
+            return (0, 0, "—")
+        }
+        let cal = Calendar.current
+        var current = 0
+        var day = cal.startOfDay(for: Date())
+        for _ in 0..<365 {
+            let key = isoDateKey(day)
+            if let c = byDate[key], c.count > 0 { current += 1 }
+            else { break }
+            day = cal.date(byAdding: .day, value: -1, to: day)!
+        }
+        let sorted = byDate.values.sorted { $0.date > $1.date }
+        var longest = 0, run = 0
+        for c in sorted {
+            if c.count > 0 { run += 1; longest = max(longest, run) }
+            else { run = 0 }
+        }
+        return (current, longest, username)
+    }
+
+    private func isoDateKey(_ date: Date) -> String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.string(from: date)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Streak summary block
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 4) {
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(Color(red: 0.98, green: 0.58, blue: 0.20))
+                    Text("\(streakInfo.current) day streak · longest \(streakInfo.longest)d")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(Color(white: 0.75))
+                        .lineLimit(1)
+                }
+                HStack {
+                    Text(streakInfo.username)
+                        .font(.system(size: 9))
+                        .foregroundStyle(Color(white: 0.35))
+                    Spacer()
+                    Button {
+                        Task { await contributions.fetchAll() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 8))
+                            .foregroundStyle(contributions.isFetching ? Color(white: 0.25) : Color(white: 0.4))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(contributions.isFetching)
+                }
+            }
+            .padding(8)
+            .background(RoundedRectangle(cornerRadius: 6).fill(Color(white: 0.06)))
+
+            // Heatmap — 14 weeks
+            VStack(alignment: .leading, spacing: 4) {
+                Text("GitHub")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Color(white: 0.4))
+                ProjectsHeatmapView(contributionsByUser: contributions.contributionsByUser)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxHeight: .infinity, alignment: .top)
+        .task {
+            if contributions.contributionsByUser.isEmpty { await contributions.fetchAll() }
+        }
+    }
+}
+
+// MARK: - Projects Heatmap
+
+private struct ProjectsHeatmapView: View {
+    let contributionsByUser: [String: [String: DayContribution]]
+
+    private static let cellSize: CGFloat = 5
+    private static let cellGap:  CGFloat = 1.5
+    private static let weeks = 14
+    private static let levels: [Color] = [
+        Color(white: 0.10),
+        Color(red: 0.14, green: 0.44, blue: 0.29),
+        Color(red: 0.10, green: 0.59, blue: 0.34),
+        Color(red: 0.14, green: 0.73, blue: 0.40),
+        Color(red: 0.20, green: 0.90, blue: 0.50)
+    ]
+
+    private func isoKey(_ date: Date) -> String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.string(from: date)
+    }
+
+    private func level(for date: Date) -> Int {
+        var total = 0
+        for byDate in contributionsByUser.values {
+            total += byDate[isoKey(date)]?.count ?? 0
+        }
+        return DayContribution(date: date, count: total).level
+    }
+
+    var body: some View {
+        let cal = Calendar(identifier: .gregorian)
+        let today = cal.startOfDay(for: Date())
+        let totalDays = Self.weeks * 7
+        let startDate = cal.date(byAdding: .day, value: -(totalDays - 1), to: today)!
+
+        HStack(alignment: .top, spacing: Self.cellGap) {
+            ForEach(0..<Self.weeks, id: \.self) { week in
+                VStack(spacing: Self.cellGap) {
+                    ForEach(0..<7, id: \.self) { dayOfWeek in
+                        let dayIndex = week * 7 + dayOfWeek
+                        let date = cal.date(byAdding: .day, value: dayIndex, to: startDate)!
+                        let lv = level(for: date)
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(Self.levels[min(lv, Self.levels.count - 1)])
+                            .frame(width: Self.cellSize, height: Self.cellSize)
+                    }
+                }
+            }
         }
     }
 }

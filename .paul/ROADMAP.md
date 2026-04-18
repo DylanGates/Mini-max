@@ -1,45 +1,59 @@
-# Mini-Max Roadmap
+# Roadmap — Second Brain (v0.1 Aware)
 
-## Milestone v0.1 — Core Loop (In progress)
+## Milestone: v0.1 Aware
+**Status:** In progress
+**Goal:** Mini-Max surfaces contextual AI insights on every tab, proactively.
 
-### Phase 0 — Foundation ✅ Complete
-All 6 tabs scaffolded. Stores wired. GitHub multi-account heatmap. Header badge pills.
+---
 
-### Phase 1 — Menu Bar Indicators ✅ Complete (2026-04-07)
-NSStatusItem with live Pomodoro/streak/events/tasks indicators (Raycast-style).
+## Phase 1 — InsightEngine Core ✓ COMPLETE
+Build the AI engine: API client, per-tab context builders, 5min cache. Render brief insight line at bottom of all tabs.
 
-- [ ] `StatusBarController` — NSStatusItem, custom NSView, 3 layout modes
-- [ ] Pomodoro dot: red ● + countdown from PomodoroManager (live tick)
-- [ ] GitHub streak dot: orange ● + count from GitHubContributionStore
-- [ ] Learning streak dot: purple ● + days from LearningStore
-- [ ] Events dot: blue ● + count from CalendarManager
-- [ ] Tasks dot: green ● + pending count from TaskStore
-- [ ] Hover reveal in ultra-compact mode (NSTrackingArea)
-- [ ] Layout mode persisted to UserDefaults; toggle in Settings
+**Done:** Every tab surfaces a single-line insight on switch. Cached. Manual regenerate works.
 
-### Phase 2 — Settings Panel Content
-- [ ] GitHub PAT entry per account (Keychain storage)
-- [ ] Layout mode selector (primary / ultra-compact / badge)
-- [ ] Obsidian vault path picker
-- [ ] Notification toggles
+| Plan | Description | Status |
+|------|-------------|--------|
+| 01-01 | InsightEngine multi-AI + cache | ✓ done |
+| 01-02 | Context-aware prompt builders | ✓ done |
+| 01-03 | InsightLineView wired to all 6 panels | ✓ done |
 
-### Phase 3 — Integrations
-- [ ] Obsidian auto-log (Pomodoro sessions → daily note)
-- [ ] Apple Reminders sync (EKReminder in Tasks tab)
-- [ ] Tech news morning brief (RSS + Claude summary)
-- [ ] Git checkpoint (refs/notch-snapshots)
-- [ ] Sound notifications (AVAudioPlayer)
+---
 
-### Phase 4 — AI & Proactive Layer
-- [ ] Claude API streaming chat (AI tab)
-- [ ] Context injection (sessions + tasks + brain dumps)
-- [ ] EmbeddingEngine (Core ML, all-MiniLM-L6-v2)
-- [ ] Proactive nudges (streak risk, morning brief)
-- [ ] Recurring blocker detection (cosine similarity)
+## Phase 2 — Verbose Mode + Eyes ✓ COMPLETE
+Verbose paragraph rendering. MiniMaxEyes overlay on 5 tabs. Tap-to-regenerate.
 
-### Phase 5 — Polish & Ports
-- [ ] Music player (MusicKit, album art, controls)
-- [ ] Sneak peek (2s pop-up on nudge/track change)
-- [ ] Fullscreen auto-hide
-- [ ] Sleep prevention (IOPMAssertion while Pomodoro active)
-- [ ] Volume/brightness HUD
+**Done:** Verbose 2–4 sentence insights on all panels. Eyes animate (float/glow/load states). Tap regenerates insight with fresh API call bypassing cache.
+
+| Plan | Description | Status |
+|------|-------------|--------|
+| 02-01 | MiniMaxEyes SwiftUI component | ✓ done |
+| 02-02 | Verbose paragraph mode in all panels | ✓ done |
+| 02-03 | Eyes overlay + tap-to-regenerate wiring | ✓ done |
+
+**Completed:** 2026-04-11 — 3/3 plans
+
+---
+
+## Phase 3 — Tool Engine  ← CURRENT
+Give Mini-Max's AI the ability to call tools (shell, file read, app context) so insights are grounded in live data rather than static prompts. Claude decides when to call tools; results feed back into the final response.
+
+**Done when:** Insights can reference live `git log`, file contents, directory structure, and structured app data fetched at call time. Tool calls are transparent (shown in insight display). Both Claude and OpenAI tool-use paths work.
+
+| Plan | Description | Status |
+|------|-------------|--------|
+| 03-01 | ToolEngine + Claude tool-use loop in InsightEngine | ✓ done |
+| 03-02 | write_file + fetch_url + tool activity display | ✓ done |
+
+**Completed:** 2026-04-16 — 2/2 plans
+
+---
+
+## Phase 6 — Feed Tab ✅ COMPLETE
+Replace Streak tab with a Feed tab: two-column layout with morning news brief (left) and learning queue (right). HN headlines summarised by Claude daily; GitHub heatmap moved to Projects tab.
+
+| Plan | Description | Status |
+|------|-------------|--------|
+| 06-01 | FeedPanel shell: tab rename + news placeholder + streak column | ✓ done |
+| 06-02 | MorningBriefEngine + FeedLearningColumn | ✓ done |
+
+**Completed:** 2026-04-18 — 2/2 plans

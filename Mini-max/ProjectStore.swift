@@ -10,6 +10,7 @@ struct Project: Identifiable, Codable {
     var totalMinutes: Int   // persisted work time in minutes
     var isActive: Bool
     var dateAdded: Date
+    var deadline: Date? = nil
 
     var totalHoursDisplay: String {
         let h = totalMinutes / 60
@@ -39,13 +40,23 @@ final class ProjectStore {
 
     // MARK: - Mutations
 
-    func add(name: String, language: String, path: String) {
+    func add(name: String, subtitle: String = "", language: String, path: String, phase: ProjectPhase = .building, milestonesTotal: Int = 5, deadline: Date? = nil) {
         // Deactivate others when adding a new active project
         let project = Project(
-            name: name, language: language, path: path,
-            sessionsToday: 0, totalMinutes: 0,
+            name: name,
+            subtitle: subtitle,
+            language: language,
+            path: path,
+            phase: phase,
+            milestonesTotal: milestonesTotal,
+            milestonesCompleted: 0,
+            tasksTotal: 0,
+            tasksCompleted: 0,
+            sessionsToday: 0,
+            totalMinutes: 0,
             isActive: projects.isEmpty,
-            dateAdded: Date()
+            dateAdded: Date(),
+            deadline: deadline
         )
         projects.append(project)
         save()
