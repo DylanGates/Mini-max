@@ -18,41 +18,81 @@ enum NotchTab { case home, projects, streak, learn, tasks, focus }
 struct NotchShellView: View {
     var state: NotchDisplayState
 
-    // Separate open vs close spring — BoringNotch pattern
-    private var currentAnimation: Animation {
-        state.isExpanded
-            ? .spring(response: 0.42, dampingFraction: 0.8)
-            : .spring(response: 0.45, dampingFraction: 1.0)
+    // Shape layer state — driven immediately when isExpanded changes
+    @State private var shapeExpanded = false
+    // Content layer state — driven with a delay so content wells up after the shape opens
+    @State private var contentExpanded = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    // boringNotch open: response: 0.42, dampingFraction: 0.8
+    private var openSpring: Animation {
+        reduceMotion ? .linear(duration: 0) : .spring(response: 0.42, dampingFraction: 0.8)
+    }
+    // boringNotch close: response: 0.45, dampingFraction: 1.0
+    private var closeSpring: Animation {
+        reduceMotion ? .linear(duration: 0) : .spring(response: 0.45, dampingFraction: 1.0)
+    }
+    // Content entrance: smooth duration 0.35 per boringNotch transition
+    private var contentSpring: Animation {
+        reduceMotion ? .linear(duration: 0) : .smooth(duration: 0.35)
     }
 
     var body: some View {
         ZStack {
-            NotchShape(bottomCornerRadius: state.isExpanded ? 28 : 10)
+            // ── Shape — morphs from pill to card ────────────────────────────
+            NotchShape(
+                bottomCornerRadius: shapeExpanded ? 24 : 14,
+                outerCornerRadius:  shapeExpanded ? 19 : 6
+            )
             .fill(Color(red: 11/255, green: 11/255, blue: 11/255))
             .shadow(
-                color: state.isExpanded ? .black.opacity(0.6) : .clear,
-                radius: 6
+                color: .black.opacity(shapeExpanded ? 0.70 : 0),
+                radius: shapeExpanded ? 6 : 0,
+                y:      shapeExpanded ? 2 : 0
             )
+            .contentShape(Rectangle())
 
-            // Pill eyes (collapsed state)
+            // ── Eyes — shrink away on open, pop back on close ───────────────
             HStack(spacing: 10) {
                 Capsule().fill(.white.opacity(0.72)).frame(width: 6, height: 6)
                 Capsule().fill(.white.opacity(0.72)).frame(width: 6, height: 6)
             }
             .padding(.bottom, 3)
-            .opacity(state.isExpanded ? 0 : 1)
+            .opacity(shapeExpanded ? 0 : 1)
+            .scaleEffect(shapeExpanded ? 0.5 : 1.0)
 
-            // Expanded content
-            ExpandedNotchContent()
-                .opacity(state.isExpanded ? 1 : 0)
-                .scaleEffect(
-                    x: state.isExpanded ? 1 : 0.94,
-                    y: state.isExpanded ? 1 : 0.94,
-                    anchor: .top
-                )
+            // ── Content — scale 0.8 to 1.0 transition matching boringNotch ──
+            if contentExpanded {
+                ExpandedNotchContent()
+                    .transition(
+                        .scale(scale: 0.8, anchor: .top)
+                        .combined(with: .opacity)
+                    )
+            }
         }
-        .animation(currentAnimation, value: state.isExpanded)
+        .animation(shapeExpanded ? openSpring : closeSpring, value: shapeExpanded)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            shapeExpanded   = state.isExpanded
+            contentExpanded = state.isExpanded
+        }
+        .onChange(of: state.isExpanded) { _, expanded in
+            if expanded {
+                withAnimation(openSpring) { shapeExpanded = true }
+                withAnimation(contentSpring.delay(reduceMotion ? 0 : 0.12)) {
+                    contentExpanded = true
+                }
+            } else {
+                // Fast exit for content
+                withAnimation(.easeIn(duration: 0.12)) {
+                    contentExpanded = false
+                }
+                withAnimation(closeSpring) {
+                    shapeExpanded = false
+                }
+            }
+        }
     }
 }
 
@@ -130,7 +170,40 @@ private struct NotchHeaderBar: View {
     private let calendar = CalendarManager.shared
     private let tasks    = TaskStore.shared
 
-    // GitHub current streak — count consecutive days ending today with ≥1 commit
+    var body: some View {
+        HStack(spacing: 0) {
+            // Tab row — no outer capsule, each tab styles itself (Notchy pattern)
+            HStack(spacing: 2) {
+                TabPillButton(symbol: "house.fill",   label: "Home",     isSelected: activeTab == .home)      { activeTab = .home }
+                TabPillButton(symbol: "folder.fill",  label: "Projects", isSelected: activeTab == .projects)  { activeTab = .projects }
+                TabPillButton(symbol: "eye.fill",     label: "Awareness", isSelected: activeTab == .awareness) { activeTab = .awareness }
+                TabPillButton(symbol: "timer",        label: "Focus",     isSelected: activeTab == .focus)     { activeTab = .focus }
+            }
+
+            Spacer()
+
+            // Right: status pills + settings + battery (unified impeccable aesthetic)
+            HStack(spacing: 5) {
+                StatusBadgePill(symbol: "timer", label: pomodoroLabel)
+                StatusBadgePill(symbol: "flame", label: "\(githubStreak)")
+                StatusBadgePill(symbol: "calendar", label: "\(eventCount)")
+                StatusBadgePill(symbol: "checklist", label: "\(pendingTasks)")
+
+                // Integrated divider
+                Rectangle()
+                    .fill(Color(white: 0.15))
+                    .frame(width: 0.5, height: 10)
+                    .padding(.horizontal, 1)
+
+                NotchSettingsButton()
+                NotchBatteryView(battery: battery)
+            }
+        }
+    }
+
+    private var eventCount: Int { calendar.events.count }
+    private var pendingTasks: Int { tasks.pending.count }
+
     private var githubStreak: Int {
         guard !github.contributionsByUser.isEmpty else { return 0 }
         let df = DateFormatter()
@@ -197,26 +270,27 @@ private struct NotchHeaderBar: View {
 private struct StatusBadgePill: View {
     let symbol: String
     let label: String
-    var iconSize: CGFloat = 8
-    let borderColor: Color
 
     var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: 4) {
             Image(systemName: symbol)
-                .font(.system(size: iconSize, weight: .regular))
-                .foregroundStyle(borderColor)
-                .frame(width: iconSize, height: iconSize)
-            Text(label)
                 .font(.system(size: 8, weight: .regular))
-                .fontDesign(.default)
-                .foregroundStyle(.white)
-                .monospacedDigit()
+                .foregroundStyle(Color(white: 0.45))
+            
+            Text(label)
+                .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                .kerning(0.2) // Refined character spacing
+                .foregroundStyle(Color(white: 0.88))
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
+        .padding(.horizontal, 7)
+        .frame(height: 18)
         .background(
-            RoundedRectangle(cornerRadius: 4)
-                .stroke(borderColor, lineWidth: 1)
+            RoundedRectangle(cornerRadius: 5)
+                .fill(Color(white: 0.08)) // Deep neutral
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 5)
+                .stroke(Color(white: 0.15), lineWidth: 0.5) // Crisp border
         )
     }
 }
@@ -286,14 +360,12 @@ private struct NotchSettingsButton: View {
 private struct NotchBatteryView: View {
     let battery: BatteryMonitor
 
-    // Matches boring.notch: bolt when charging, plug when plugged-in only
     private var powerIcon: String? {
         if battery.isCharging { return "bolt" }
         if battery.isPluggedIn { return "powerplug" }
         return nil
     }
 
-    // boring.notch batteryColor logic
     private var fillColor: Color {
         if battery.isInLowPowerMode                          { return .yellow }
         if battery.level <= 20 && !battery.isCharging
@@ -303,7 +375,7 @@ private struct NotchBatteryView: View {
         return .white
     }
 
-    private let w: CGFloat = 24  // batteryWidth
+    private let w: CGFloat = 24
 
     var body: some View {
         HStack(spacing: 4) {
@@ -311,7 +383,6 @@ private struct NotchBatteryView: View {
                 .font(.system(size: 8))
                 .foregroundStyle(.white)
 
-            // Battery shell + fill + power icon — same ZStack layout as boring.notch BatteryView
             ZStack(alignment: .leading) {
                 Image(systemName: "battery.0")
                     .resizable()
@@ -324,7 +395,7 @@ private struct NotchBatteryView: View {
                     .fill(fillColor)
                     .frame(
                         width: max(1, (w - 6) * CGFloat(battery.level) / 100),
-                        height: w * 0.4 - 4   // ≈ 5.6 px at w=24
+                        height: w * 0.4 - 4
                     )
                     .padding(.leading, 2)
 
@@ -363,7 +434,6 @@ private struct MiniMaxHomePanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Top: greeting + active project
             VStack(alignment: .leading, spacing: 3) {
                 Text(greeting)
                     .font(.system(size: 15, weight: .semibold))
@@ -383,7 +453,6 @@ private struct MiniMaxHomePanel: View {
 
             Spacer(minLength: 0)
 
-            // Center: eyes + state label
             VStack(alignment: .center, spacing: 4) {
                 MiniMaxEyesView()
                     .frame(maxWidth: .infinity)
@@ -690,7 +759,6 @@ private func fetchGitStats(path: String) async -> ProjectGitStats {
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
-    // Verify it's a git repo
     let topLevel = run(["rev-parse", "--show-toplevel"])
     guard !topLevel.isEmpty else { return ProjectGitStats() }
 
@@ -1461,11 +1529,11 @@ struct DateWheelPicker: View {
     private var dateItems: [DateItem] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        let start = cal.date(byAdding: .day, value: -pastDays, to: today)!
+        let start = cal.date(byAdding: .day, value: -pastDays, to: today) ?? today
         let labelFmt = DateFormatter(); labelFmt.dateFormat = "EEE"; labelFmt.locale = .init(identifier: "en_US")
         let dayFmt   = DateFormatter(); dayFmt.dateFormat = "dd"
         return (0..<totalItems).map { offset in
-            let date = cal.date(byAdding: .day, value: offset, to: start)!
+            let date = cal.date(byAdding: .day, value: offset, to: start) ?? today
             return DateItem(
                 index: offset + 1,
                 date: date,
@@ -1480,7 +1548,7 @@ struct DateWheelPicker: View {
     private func indexForDate(_ date: Date) -> Int {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        let start = cal.date(byAdding: .day, value: -pastDays, to: today)!
+        let start = cal.date(byAdding: .day, value: -pastDays, to: today) ?? today
         let days = cal.dateComponents([.day], from: start, to: cal.startOfDay(for: date)).day ?? 0
         return max(1, min(days + 1, totalItems))
     }
