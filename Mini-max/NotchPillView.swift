@@ -135,13 +135,13 @@ struct NotchPillView: View {
 
 #Preview("Pill — no shoulder") {
     NotchPillView(outerCornerRadius: 0)
-        .frame(width: 180, height: 40)
+        .frame(width: 160, height: 30)
         .background(Color(white: 0.2))
 }
 
 #Preview("Pill — with shoulder") {
     NotchPillView(outerCornerRadius: 6)
-        .frame(width: 180, height: 40)
+        .frame(width: 160, height: 30)
         .background(Color(white: 0.2))
 }
 

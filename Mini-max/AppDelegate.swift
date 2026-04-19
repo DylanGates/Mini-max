@@ -12,6 +12,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory) // no Dock icon
 
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.setupWindows()
+        }
+
         requestAccessibilityIfNeeded()
         setupWindows()
         setupHotkey()
@@ -115,6 +123,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func scheduleHide(after delay: TimeInterval) {
         let item = DispatchWorkItem { [weak self] in
+            // Don't collapse while a modal (e.g. NSOpenPanel) is running —
+            // its nested run loop fires timers while the sheet is still open.
+            guard NSApp.modalWindow == nil else { return }
             self?.hidePanel()
         }
         hideWorkItem = item

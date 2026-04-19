@@ -11,7 +11,7 @@ final class NotchOverlayWindow: NSPanel {
     init() {
         super.init(
             contentRect: CGRect(x: 0, y: 0, width: 200, height: 32),
-            styleMask: [.nonactivatingPanel, .fullSizeContentView, .borderless],
+            styleMask: [.borderless, .nonactivatingPanel, .utilityWindow, .hudWindow, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -36,9 +36,9 @@ final class NotchOverlayWindow: NSPanel {
     }
 
     /// How many points the pill extends below the real hardware notch.
-    static let bottomExtension: CGFloat = 12
+    static let bottomExtension: CGFloat = 6
     /// Extra width on each side for the outer gutter blend curves.
-    static let gutterWidth: CGFloat = 10
+    static let gutterWidth: CGFloat = 0
 
     func positionOver(notchRect: CGRect) {
         let g = NotchOverlayWindow.gutterWidth
