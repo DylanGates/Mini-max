@@ -12,7 +12,7 @@ class RealTimeNewsService {
     private let sources = [
         "TechCrunch": "https://techcrunch.com/feed/",
         "The Verge": "https://www.theverge.com/rss/index.xml",
-        "CNN Business": "http://rss.cnn.com/rss/money_latest.rss",
+        "CNN Business": "https://feeds.feedburner.com/cnnmoney",
         "BBC Tech": "https://feeds.bbci.co.uk/news/technology/rss.xml",
         "BBC Business": "https://feeds.bbci.co.uk/news/business/rss.xml",
         "Forbes": "https://www.forbes.com/business/feed/",
