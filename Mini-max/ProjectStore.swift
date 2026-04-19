@@ -1,11 +1,24 @@
 import Foundation
 import Observation
 
+enum ProjectPhase: String, Codable, CaseIterable {
+    case planning = "Planning"
+    case building = "Building"
+    case testing = "Testing"
+    case shipping = "Shipping"
+}
+
 struct Project: Identifiable, Codable {
     var id = UUID()
     var name: String
+    var subtitle: String = ""
     var language: String
     var path: String        // file system path, empty if not set
+    var phase: ProjectPhase = .building
+    var milestonesTotal: Int = 5
+    var milestonesCompleted: Int = 0
+    var tasksTotal: Int = 0
+    var tasksCompleted: Int = 0
     var sessionsToday: Int
     var totalMinutes: Int   // persisted work time in minutes
     var isActive: Bool
@@ -17,6 +30,17 @@ struct Project: Identifiable, Codable {
         if h == 0 { return "\(m)m" }
         if m == 0 { return "\(h)h" }
         return "\(h)h \(m)m"
+    }
+
+    var progress: Double {
+        let milestoneWeight = 0.7
+        let taskWeight = 0.3
+        
+        let mProgress = milestonesTotal > 0 ? Double(milestonesCompleted) / Double(milestonesTotal) : 0
+        let tProgress = tasksTotal > 0 ? Double(tasksCompleted) / Double(tasksTotal) : 0
+        
+        if tasksTotal == 0 { return mProgress }
+        return (mProgress * milestoneWeight) + (tProgress * taskWeight)
     }
 }
 
